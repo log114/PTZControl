@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF2D2D2F"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 标题栏 -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="#FF3A3A3A">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="云台FPV"
+                android:textColor="@android:color/white"
+                android:textSize="20sp"
+                android:gravity="center"
+                android:textStyle="bold"/>
+
+            <ImageButton
+                android:id="@+id/backButton"
+                android:layout_width="40dp"
+                android:layout_height="match_parent"
+                android:src="@drawable/ic_back"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="返回"/>
+        </RelativeLayout>
+
+        <!-- 设置项 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="视频流地址1"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:paddingTop="24dp"
+            android:paddingBottom="8dp"/>
+
+        <EditText
+            android:id="@+id/streamUrl_1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="rtsp://192.168.144.108:554/stream=0"
+            android:textColor="@android:color/white"
+            android:background="#FF454545"
+            android:padding="12dp"/>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="视频流地址2"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:paddingTop="24dp"
+            android:paddingBottom="8dp"/>
+
+        <EditText
+            android:id="@+id/streamUrl_2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="rtsp://192.168.144.108:554/stream=1"
+            android:textColor="@android:color/white"
+            android:background="#FF454545"
+            android:padding="12dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="16dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="开启硬件解码"
+                android:textColor="@android:color/white"
+                android:textSize="16sp"/>
+
+            <Switch
+                android:id="@+id/hwDecodingSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="8dp"
+            android:paddingBottom="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="RTSP流使用TCP传输"
+                android:textColor="@android:color/white"
+                android:textSize="16sp"/>
+
+            <Switch
+                android:id="@+id/tcpTransportSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="false"/>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="设置IP"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:paddingTop="16dp"
+            android:paddingBottom="8dp"/>
+
+        <TextView
+            android:id="@+id/ipAddress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="192.168.144.108"
+            android:textColor="@android:color/white"
+            android:background="#FF454545"
+            android:inputType="number|text"
+            android:padding="12dp"
+            android:clickable="true"
+            android:focusable="true"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="设备编码模式"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:paddingTop="24dp"
+            android:paddingBottom="8dp"/>
+
+        <Button
+            android:id="@+id/encodingModeButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选择编码模式"
+            android:background="#FF454545"
+            android:textColor="@android:color/white"
+            android:padding="12dp"
+            android:textAllCaps="false"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="固件升级"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:paddingTop="24dp"
+            android:paddingBottom="8dp"/>
+
+        <Button
+            android:id="@+id/firmwareUpdateButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="检查并升级固件"
+            android:background="#FF454545"
+            android:textColor="@android:color/white"
+            android:padding="12dp"
+            android:textAllCaps="false"/>
+    </LinearLayout>
+</ScrollView>

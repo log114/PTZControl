@@ -125,8 +125,14 @@ class FloatingWindowManager(private val context: Context) {
         }
     }
 
+    fun isFloatingWindowShowing(): Boolean {
+        return floatingView != null
+    }
+
     // 关闭悬浮窗
     fun closeFloatingWindow() {
+        Log.d(TAG, "准备关闭悬浮窗")
+        Log.d(TAG, "$floatingView")
         floatingView?.let {
             try {
                 windowManager.removeView(it)
@@ -144,6 +150,10 @@ class FloatingWindowManager(private val context: Context) {
         player2?.let {
             (context as? MainActivity)?.findViewById<StyledPlayerView>(R.id.playerView2)?.player = it
         }
+
+        // 清除引用
+        player1 = null
+        player2 = null
     }
 }
 

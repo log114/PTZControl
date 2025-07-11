@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/black"
@@ -19,14 +18,79 @@
             android:id="@+id/playerView1"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            app:use_controller="false" />
 
         <!-- 视频流2 -->
         <com.google.android.exoplayer2.ui.StyledPlayerView
             android:id="@+id/playerView2"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            app:use_controller="false" />
     </LinearLayout>
+    <!-- 透明覆盖层用于捕获拖拽事件 -->
+    <View
+        android:id="@+id/dragOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent"/>
+    <!-- 设置按钮 -->
+    <ImageButton
+        android:id="@+id/settingsButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:src="@drawable/ic_settings"
+        android:background="@drawable/round_button_pressed"
+        android:contentDescription="设置"/>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:orientation="horizontal"
+        android:gravity="end">
+        <!-- 云台偏航回中 -->
+        <ImageButton
+            android:id="@+id/yawToCEnterButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/yaw_to_center"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="4dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="云台偏航回中"/>
+        <!-- 云台回中 -->
+        <ImageButton
+            android:id="@+id/ptzToCenterButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ptz_to_center"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="4dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="云台回中"/>
+        <!-- 云台俯仰向下 -->
+        <ImageButton
+            android:id="@+id/pitchToCenterButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/pitch_to_bottom"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="4dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="云台俯仰向下"/>
+    </LinearLayout>
+</RelativeLayout>
