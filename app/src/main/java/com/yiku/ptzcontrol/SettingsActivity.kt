@@ -2,13 +2,13 @@ package com.yiku.ptzcontrol
 
 import android.app.AlertDialog
 import android.content.DialogInterface
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.text.InputType
 import android.util.Log
-import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
-import android.widget.Switch
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.yiku.ptzcontrol.service.BaseService
@@ -17,10 +17,8 @@ import com.yiku.ptzcontrol.service.C12Service
 
 class SettingsActivity : AppCompatActivity() {
     private val TAG = "SettingsActivity"
-    private lateinit var streamUrlEditText_1: EditText
-    private lateinit var streamUrlEditText_2: EditText
-    private lateinit var hwDecodingSwitch: Switch
-    private lateinit var tcpTransportSwitch: Switch
+    private lateinit var streamUrlEditText1: EditText
+    private lateinit var streamUrlEditText2: EditText
     private lateinit var ipAddressText: TextView
     private var service: BaseService? = null
 
@@ -29,10 +27,8 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_settings)
 
         // 初始化视图
-        streamUrlEditText_1 = findViewById(R.id.streamUrl_1)
-        streamUrlEditText_2 = findViewById(R.id.streamUrl_2)
-        hwDecodingSwitch = findViewById(R.id.hwDecodingSwitch)
-        tcpTransportSwitch = findViewById(R.id.tcpTransportSwitch)
+        streamUrlEditText1 = findViewById(R.id.streamUrl_1)
+        streamUrlEditText2 = findViewById(R.id.streamUrl_2)
         ipAddressText = findViewById(R.id.ipAddress)
 
         // 设置返回按钮
@@ -40,31 +36,20 @@ class SettingsActivity : AppCompatActivity() {
             saveSettingsAndFinish()
         }
 
-        // 设备编码模式
-        findViewById<Button>(R.id.encodingModeButton).setOnClickListener {
-            showEncodingModeDialog()
-        }
-
-        // 固件升级
-        findViewById<Button>(R.id.firmwareUpdateButton).setOnClickListener {
-            checkFirmwareUpdate()
-        }
-
         ipAddressText.setOnClickListener {
             showDialog(
-                ipAddressText.getText().toString(),
+                ipAddressText.text.toString(),
                 object : ValueChangeListener {
                     override fun onValueChanged(newValue: String) {
                         ipAddressText.text = newValue
                         val prefs = getSharedPreferences("camera_settings", MODE_PRIVATE)
-                        val host = prefs.getString("ip_address", "192.168.144.108")!!
-                        if(service == null) {
-                            service = C12Service()
-                            service!!.connect(host)
-                        }
-                        service!!.setIp(newValue)
                         val prefsEdit = prefs.edit()
                         prefsEdit.putString("ip_address", newValue).apply()
+                        // 修改了ip，就同步修改视频流地址
+                        val streamUrl1 = "rtsp://$newValue:554/stream=1"
+                        val streamUrl2 = "rtsp://$newValue:555/stream=2"
+                        streamUrlEditText1.setText(streamUrl1)
+                        streamUrlEditText2.setText(streamUrl2)
                     }
                 }
             )
@@ -72,16 +57,26 @@ class SettingsActivity : AppCompatActivity() {
 
         // 加载保存的设置
         loadSavedSettings()
+
+        // 显示版本信息
+        val versionText = findViewById<TextView>(R.id.appVersion)
+        val manager: PackageManager = this.packageManager
+        var name: String? = null
+        try {
+            val info: PackageInfo = manager.getPackageInfo(this.packageName, 0)
+            name = info.versionName
+            versionText.text = "V$name"
+        } catch (e: PackageManager.NameNotFoundException) {
+            e.printStackTrace()
+        }
     }
 
     private fun loadSavedSettings() {
         // 从SharedPreferences加载保存的设置
         val prefs = getSharedPreferences("camera_settings", MODE_PRIVATE)
 
-        streamUrlEditText_1.setText(prefs.getString("stream_url_1", "rtsp://192.168.144.108:554/stream=0"))
-        streamUrlEditText_2.setText(prefs.getString("stream_url_2", "rtsp://192.168.144.108:554/stream=1"))
-        hwDecodingSwitch.isChecked = prefs.getBoolean("hardware_decoding", true)
-        tcpTransportSwitch.isChecked = prefs.getBoolean("tcp_transport", false)
+        streamUrlEditText1.setText(prefs.getString("stream_url_1", "rtsp://192.168.144.108:554/stream=1"))
+        streamUrlEditText2.setText(prefs.getString("stream_url_2", "rtsp://192.168.144.108:555/stream=2"))
         ipAddressText.text = prefs.getString("ip_address", "192.168.144.108")
     }
 
@@ -89,10 +84,8 @@ class SettingsActivity : AppCompatActivity() {
         // 保存设置到SharedPreferences
         val prefs = getSharedPreferences("camera_settings", MODE_PRIVATE).edit()
 
-        prefs.putString("stream_url_1", streamUrlEditText_1.text.toString())
-            .putString("stream_url_2", streamUrlEditText_2.text.toString())
-            .putBoolean("hardware_decoding", hwDecodingSwitch.isChecked)
-            .putBoolean("tcp_transport", tcpTransportSwitch.isChecked)
+        prefs.putString("stream_url_1", streamUrlEditText1.text.toString())
+            .putString("stream_url_2", streamUrlEditText2.text.toString())
             .putString("ip_address", ipAddressText.text.toString())
             .apply()
 
@@ -100,21 +93,11 @@ class SettingsActivity : AppCompatActivity() {
         finish()
     }
 
-    private fun showEncodingModeDialog() {
-        // TODO: 实现编码模式选择对话框
-        // 选项: H.264, H.265, MJPEG, etc.
-    }
-
-    private fun checkFirmwareUpdate() {
-        // TODO: 实现固件升级逻辑
-    }
-
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         super.onBackPressed()
         saveSettingsAndFinish()
     }
-
 
     // 验证IP格式是否正确
     private fun isValidIPv4(ip: String): Boolean {
@@ -142,7 +125,7 @@ class SettingsActivity : AppCompatActivity() {
         // 设置对话框视图
         val input = EditText(this)
         input.setText(currentValue)
-        input.inputType = InputType.TYPE_CLASS_TEXT
+        input.inputType = InputType.TYPE_CLASS_PHONE
         input.hint = "IP地址："
         input.setSelectAllOnFocus(true)
 
@@ -172,7 +155,7 @@ class SettingsActivity : AppCompatActivity() {
 
                 // 4. 验证IP有效性
                 if (!isValidIPv4(newValue)) {
-                    input.error = "无效的IP地址格式！示例：192.168.1.1"
+                    input.error = "无效的IP地址格式！示例：192.168.144.108"
                     return@setOnClickListener
                 }
 

@@ -19,7 +19,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:text="云台FPV"
+                android:text="设置"
                 android:textColor="@android:color/white"
                 android:textSize="20sp"
                 android:gravity="center"
@@ -33,6 +33,26 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="返回"/>
         </RelativeLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="设置IP"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:paddingTop="16dp"
+            android:paddingBottom="8dp"/>
+
+        <TextView
+            android:id="@+id/ipAddress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="192.168.144.108"
+            android:textColor="@android:color/white"
+            android:background="#FF454545"
+            android:padding="12dp"
+            android:clickable="true"
+            android:focusable="true"/>
 
         <!-- 设置项 -->
         <TextView
@@ -70,109 +90,15 @@
             android:background="#FF454545"
             android:padding="12dp"/>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingTop="16dp"
-            android:paddingBottom="8dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="开启硬件解码"
-                android:textColor="@android:color/white"
-                android:textSize="16sp"/>
-
-            <Switch
-                android:id="@+id/hwDecodingSwitch"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="true"/>
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingTop="8dp"
-            android:paddingBottom="16dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="RTSP流使用TCP传输"
-                android:textColor="@android:color/white"
-                android:textSize="16sp"/>
-
-            <Switch
-                android:id="@+id/tcpTransportSwitch"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="false"/>
-        </LinearLayout>
-
         <TextView
+            android:id="@+id/appVersion"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="设置IP"
-            android:textColor="@android:color/white"
-            android:textSize="16sp"
-            android:paddingTop="16dp"
-            android:paddingBottom="8dp"/>
-
-        <TextView
-            android:id="@+id/ipAddress"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="192.168.144.108"
-            android:textColor="@android:color/white"
-            android:background="#FF454545"
-            android:inputType="number|text"
-            android:padding="12dp"
-            android:clickable="true"
-            android:focusable="true"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="设备编码模式"
-            android:textColor="@android:color/white"
-            android:textSize="16sp"
-            android:paddingTop="24dp"
-            android:paddingBottom="8dp"/>
-
-        <Button
-            android:id="@+id/encodingModeButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="选择编码模式"
-            android:background="#FF454545"
-            android:textColor="@android:color/white"
-            android:padding="12dp"
-            android:textAllCaps="false"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="固件升级"
-            android:textColor="@android:color/white"
-            android:textSize="16sp"
-            android:paddingTop="24dp"
-            android:paddingBottom="8dp"/>
-
-        <Button
-            android:id="@+id/firmwareUpdateButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="检查并升级固件"
-            android:background="#FF454545"
-            android:textColor="@android:color/white"
-            android:padding="12dp"
-            android:textAllCaps="false"/>
+            android:text="v0.8.1"
+            android:textColor="#BFFFFFFF"
+            android:textSize="12sp"
+            android:paddingTop="32dp"
+            android:paddingBottom="16dp"
+            android:gravity="center_horizontal"/>
     </LinearLayout>
 </ScrollView>

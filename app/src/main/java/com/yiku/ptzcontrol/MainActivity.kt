@@ -13,15 +13,13 @@ import android.view.View
 import android.view.View.OnTouchListener
 import android.widget.ImageButton
 import android.widget.Toast
+import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.PlaybackException
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.ui.StyledPlayerView
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import com.yiku.ptzcontrol.service.BaseService
 import com.yiku.ptzcontrol.service.C12Service
-import com.yiku.ptzcontrol.utils.YunZhuoCrc
+import com.yiku.ptzcontrol.utils.RtspPlayer
 import kotlin.math.abs
 
 
@@ -40,8 +38,6 @@ class MainActivity : AppCompatActivity() {
     // 记录播放器状态
     private var player1PlayWhenReady = true
     private var player2PlayWhenReady = true
-    private var player1CurrentPosition = 0L
-    private var player2CurrentPosition = 0L
     private var dragOverlay: View? = null
     private var startX: Float = 0f
     private var startY: Float = 0f
@@ -64,9 +60,10 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: SharedPreferences
 
-    private var streamUrl_1 = ""
-    private var streamUrl_2 = ""
+    private var streamUrl1 = ""
+    private var streamUrl2 = ""
 
+    @UnstableApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main)
@@ -78,16 +75,16 @@ class MainActivity : AppCompatActivity() {
 
         prefs = getSharedPreferences("camera_settings", MODE_PRIVATE)
 
-        streamUrl_1 = prefs.getString("stream_url_1", "rtsp://192.168.144.108:554/stream=0")!!
-        streamUrl_2 = prefs.getString("stream_url_2", "rtsp://192.168.144.108:554/stream=1")!!
+        streamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.108:554/stream=1")!!
+        streamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.108:555/stream=2")!!
         host = prefs.getString("ip_address", "192.168.144.108")!!
 
         service = C12Service()
         service.connect(host)
 
         // 初始化播放器
-        player1 = createPlayer(streamUrl_1, R.id.playerView1)
-        player2 = createPlayer(streamUrl_2, R.id.playerView2)
+        player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView1), streamUrl1)
+        player2 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView2), streamUrl2)
 
         floatingManager = FloatingWindowManager(this)
 
@@ -120,20 +117,6 @@ class MainActivity : AppCompatActivity() {
         setupDragListener();
     }
 
-    // 创建播放器助手函数
-    private fun createPlayer(url: String, viewId: Int): ExoPlayer {
-        return ExoPlayer.Builder(this).build().apply {
-            findViewById<StyledPlayerView>(viewId).player = this
-            setMediaItem(MediaItem.fromUri(url))
-            addListener(object : Player.Listener {
-                override fun onPlayerError(error: PlaybackException) {
-                    Log.e(TAG, "Player error: ${error.message}")
-                }
-            })
-            prepare()
-        }
-    }
-
     override fun onStart() {
         super.onStart()
         Log.d(TAG, "onStart")
@@ -149,13 +132,43 @@ class MainActivity : AppCompatActivity() {
         player2.playWhenReady = true
     }
 
+    @OptIn(UnstableApi::class)
     override fun onResume() {
         super.onResume()
         Log.d(TAG, "onResume")
 
-        // 回到前台时恢复播放
-        player1.play()
-        player2.play()
+        val newHost = prefs.getString("ip_address", "192.168.144.108")!!
+        // 如果ip变了，断开重连
+        if(newHost != host) {
+            service.disconnect()
+            host = newHost
+            service.connect(host)
+        }
+        val newStreamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.108:554/stream=1")!!
+        val newStreamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.108:555/stream=2")!!
+        var isUrlChange = false
+        if(newStreamUrl1 != streamUrl1 || newStreamUrl2 != streamUrl2) {
+            streamUrl1 = newStreamUrl1
+            streamUrl2 = newStreamUrl2
+            isUrlChange = true
+        }
+
+        val resetPlayer1 = RtspPlayer.checkPlayer(player1)
+        val resetPlayer2 = RtspPlayer.checkPlayer(player2)
+        // 如果有一个播放器延迟超过1.5s，或者视频URL有改动，释放并重新创建播放器
+        if (resetPlayer1 || resetPlayer2 || isUrlChange) {
+            // 释放播放器
+            player1.release()
+            player2.release()
+            // 重新创建播放器
+            player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView1), streamUrl1)
+            player2 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView2), streamUrl2)
+        }
+        else {
+            // 回到前台时恢复播放
+            player1.play()
+            player2.play()
+        }
     }
 
     override fun onPause() {
@@ -165,20 +178,16 @@ class MainActivity : AppCompatActivity() {
         // 保存播放状态
         player1PlayWhenReady = player1.playWhenReady
         player2PlayWhenReady = player2.playWhenReady
-        player1CurrentPosition = player1.currentPosition
-        player2CurrentPosition = player2.currentPosition
     }
 
     override fun onStop() {
         super.onStop()
         Log.d(TAG, "onStop")
 
-        if (!isChangingConfigurations && !isSetting) {
+        if (!isChangingConfigurations && !isSetting && !isFinishing) {
             // 保存播放状态
             player1PlayWhenReady = player1.playWhenReady
             player2PlayWhenReady = player2.playWhenReady
-            player1CurrentPosition = player1.currentPosition
-            player2CurrentPosition = player2.currentPosition
 
             // 暂停播放器
             player1.pause()
@@ -186,13 +195,12 @@ class MainActivity : AppCompatActivity() {
 
             // 尝试显示悬浮窗
             if (floatingManager.checkOverlayPermission()) {
-                Log.d(TAG, "Attempting to show floating window")
-                floatingManager.showFloatingWindow(player1, player2,
-                    player1PlayWhenReady, player2PlayWhenReady,
-                    player1CurrentPosition, player2CurrentPosition)
-
-
-                Log.d(TAG, "stop的时候，floatingView：${floatingManager.isFloatingWindowShowing()}")
+                floatingManager.showFloatingWindow(
+                    streamUrl1 = streamUrl1,  // 传递URL而非播放器
+                    streamUrl2 = streamUrl2,
+                    playWhenReady1 = player1PlayWhenReady,
+                    playWhenReady2 = player2PlayWhenReady
+                )
             } else {
                 Log.d(TAG, "Floating window permission not granted")
             }
@@ -202,7 +210,6 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy")
-
         // 释放播放器资源
         player1.release()
         player2.release()

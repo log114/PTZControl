@@ -10,16 +10,19 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
-import android.widget.LinearLayout
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.ui.StyledPlayerView
+import androidx.annotation.OptIn
+import androidx.appcompat.app.AppCompatActivity.MODE_PRIVATE
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+import com.yiku.ptzcontrol.utils.RtspPlayer
 
 class FloatingWindowManager(private val context: Context) {
 
     private val TAG = "FloatingWindowDebug"
     private var floatingView: View? = null
-    private var player1: ExoPlayer? = null
-    private var player2: ExoPlayer? = null
+    private var floatingPlayer1: ExoPlayer? = null
+    private var floatingPlayer2: ExoPlayer? = null
 
     private val windowManager by lazy {
         context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -37,13 +40,12 @@ class FloatingWindowManager(private val context: Context) {
     }
 
     // 显示悬浮窗（添加状态恢复参数）
+    @OptIn(UnstableApi::class)
     fun showFloatingWindow(
-        player1: ExoPlayer,
-        player2: ExoPlayer,
+        streamUrl1: String,
+        streamUrl2: String,
         playWhenReady1: Boolean,
-        playWhenReady2: Boolean,
-        position1: Long,
-        position2: Long
+        playWhenReady2: Boolean
     ) {
         Log.d(TAG, "showFloatingWindow called")
 
@@ -57,37 +59,34 @@ class FloatingWindowManager(private val context: Context) {
             closeFloatingWindow()
         }
 
-        this.player1 = player1
-        this.player2 = player2
+        floatingPlayer1 = RtspPlayer.createIndependentPlayer(
+            context,
+            url = streamUrl1,
+            startPosition = 0, // 从0开始避免积累延迟
+            playWhenReady = playWhenReady1
+        )
 
-        // 确保播放器处于可用状态
-        if (player1.playbackState == ExoPlayer.STATE_IDLE) {
-            player1.prepare()
-        }
-        if (player2.playbackState == ExoPlayer.STATE_IDLE) {
-            player2.prepare()
-        }
+        floatingPlayer2 = RtspPlayer.createIndependentPlayer(
+            context,
+            url = streamUrl2,
+            startPosition = 0, // 从0开始避免积累延迟
+            playWhenReady = playWhenReady2
+        )
 
         try {
             // 创建悬浮窗视图
             floatingView = LayoutInflater.from(context).inflate(R.layout.floating_layout, null).apply {
                 // 视频容器1
-                findViewById<StyledPlayerView>(R.id.floatingPlayer1).apply {
-                    player = player1
+                findViewById<PlayerView>(R.id.floatingPlayer1).apply {
+                    player = floatingPlayer1
                     useController = false
                 }
 
                 // 视频容器2
-                findViewById<StyledPlayerView>(R.id.floatingPlayer2).apply {
-                    player = player2
+                findViewById<PlayerView>(R.id.floatingPlayer2).apply {
+                    player = floatingPlayer2
                     useController = false
                 }
-
-                // 恢复播放状态
-                player1.seekTo(position1)
-                player2.seekTo(position2)
-                player1.playWhenReady = playWhenReady1
-                player2.playWhenReady = playWhenReady2
 
                 // 关闭按钮点击事件
                 findViewById<ImageButton>(R.id.closeBtn).setOnClickListener {
@@ -143,17 +142,10 @@ class FloatingWindowManager(private val context: Context) {
             floatingView = null
         }
 
-        // 将播放器控制权交还给Activity
-        player1?.let {
-            (context as? MainActivity)?.findViewById<StyledPlayerView>(R.id.playerView1)?.player = it
-        }
-        player2?.let {
-            (context as? MainActivity)?.findViewById<StyledPlayerView>(R.id.playerView2)?.player = it
-        }
-
-        // 清除引用
-        player1 = null
-        player2 = null
+        floatingPlayer1?.release()
+        floatingPlayer2?.release()
+        floatingPlayer1 = null
+        floatingPlayer2 = null
     }
 }
 

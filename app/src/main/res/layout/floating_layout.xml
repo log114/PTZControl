@@ -26,6 +26,7 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_alignParentEnd="true"
+                android:contentDescription="关闭悬浮窗"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"/>
         </RelativeLayout>
 
@@ -37,18 +38,20 @@
             android:orientation="horizontal"
             android:weightSum="2">
 
-            <com.google.android.exoplayer2.ui.StyledPlayerView
+            <androidx.media3.ui.PlayerView
                 android:id="@+id/floatingPlayer1"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
+                app:surface_type="surface_view"
                 app:use_controller="false"/>
 
-            <com.google.android.exoplayer2.ui.StyledPlayerView
+            <androidx.media3.ui.PlayerView
                 android:id="@+id/floatingPlayer2"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
+                app:surface_type="surface_view"
                 app:use_controller="false"/>
         </LinearLayout>
     </LinearLayout>
