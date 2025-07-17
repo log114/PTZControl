@@ -37,18 +37,37 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@android:color/transparent"/>
-    <!-- 设置按钮 -->
-    <ImageButton
-        android:id="@+id/settingsButton"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
         android:layout_marginTop="16dp"
         android:layout_marginEnd="16dp"
-        android:src="@drawable/ic_settings"
-        android:background="@drawable/round_button_pressed"
-        android:contentDescription="设置"/>
+        android:orientation="horizontal">
 
+        <!-- 热成像颜色设置按钮 -->
+        <ImageButton
+            android:id="@+id/filterButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/pseudo_color_setting"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="8dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="滤镜选择"/>
+
+        <!-- 设置按钮 -->
+        <ImageButton
+            android:id="@+id/settingsButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_settings"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="设置"/>
+    </LinearLayout>
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -94,5 +113,37 @@
             android:padding="4dp"
             android:background="@drawable/round_button_pressed"
             android:contentDescription="云台俯仰向下"/>
+    </LinearLayout>
+
+    <!-- 伪彩选择弹出框 -->
+    <LinearLayout
+        android:id="@+id/filterMenu"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="50dp"
+        android:layout_marginStart="80dp"
+        android:orientation="vertical"
+        android:background="@drawable/filter_menu_background"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="伪彩设置"
+            android:textColor="@color/white"
+            android:padding="12dp"
+            android:textStyle="bold"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/black_alpha50"/>
+
+        <ListView
+            android:id="@+id/filterListView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:divider="#33000000"
+            android:dividerHeight="1dp"/>
     </LinearLayout>
 </RelativeLayout>

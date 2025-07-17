@@ -1,6 +1,7 @@
 package com.yiku.ptzcontrol
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -11,7 +12,13 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.View.OnTouchListener
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.BaseAdapter
 import android.widget.ImageButton
+import android.widget.LinearLayout
+import android.widget.ListView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
@@ -24,30 +31,6 @@ import kotlin.math.abs
 
 
 class MainActivity : AppCompatActivity() {
-
-    private lateinit var player1: ExoPlayer
-    private lateinit var player2: ExoPlayer
-    private lateinit var floatingManager: FloatingWindowManager
-    private var isSetting: Boolean = false
-
-    // 调试标签
-    private val TAG = "MainActivityDebug"
-    private var host = ""
-    private lateinit var service: BaseService
-
-    // 记录播放器状态
-    private var player1PlayWhenReady = true
-    private var player2PlayWhenReady = true
-    private var dragOverlay: View? = null
-    private var startX: Float = 0f
-    private var startY: Float = 0f
-    private val MIN_DISTANCE: Int = 100 // 最小拖拽距离（像素）
-
-    private val triggerHandler = Handler(Looper.getMainLooper())
-    private var isDragging = false
-    private var currentDirection: Int = 0
-    private var triggerRunnable: Runnable? = null
-
     companion object {
         const val OVERLAY_PERMISSION_CODE = 1000
         const val DIRECTION_NONE = 0
@@ -58,10 +41,31 @@ class MainActivity : AppCompatActivity() {
         private const val TRIGGER_INTERVAL = 100L // 触发间隔(毫秒)
     }
 
+    private lateinit var player1: ExoPlayer
+    private lateinit var player2: ExoPlayer
+    private lateinit var floatingManager: FloatingWindowManager
+    private var isSetting: Boolean = false
+    // 调试标签
+    private val TAG = "MainActivityDebug"
+    private var host = ""
+    private lateinit var service: BaseService
+    // 记录播放器状态
+    private var player1PlayWhenReady = true
+    private var player2PlayWhenReady = true
+    private var dragOverlay: View? = null
+    private var startX: Float = 0f
+    private var startY: Float = 0f
+    private val MIN_DISTANCE: Int = 100 // 最小拖拽距离（像素）
+    private val triggerHandler = Handler(Looper.getMainLooper())
+    private var isDragging = false
+    private var currentDirection: Int = 0
+    private var triggerRunnable: Runnable? = null
     private lateinit var prefs: SharedPreferences
-
     private var streamUrl1 = ""
     private var streamUrl2 = ""
+    private var currentFilterPosition = 0
+    private lateinit var filterMenu: LinearLayout
+    private lateinit var filterListView: ListView
 
     @UnstableApi
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -115,6 +119,46 @@ class MainActivity : AppCompatActivity() {
 
         dragOverlay = findViewById(R.id.dragOverlay);
         setupDragListener();
+
+        // 初始化伪彩按钮和菜单
+        filterMenu = findViewById(R.id.filterMenu)
+        filterListView = findViewById(R.id.filterListView)
+
+        // 设置伪彩选择按钮
+        findViewById<ImageButton>(R.id.filterButton).setOnClickListener {
+            toggleFilterMenu()
+        }
+
+        // 设置伪彩菜单
+        setupFilterMenu()
+        // 获取并设置伪彩默认选中项
+        service.getPseudoColor(object: BaseService.OnDataReceivedListener {
+            override fun onDataReceived(data: String) {
+                runOnUiThread {
+                    val newPosition = service.colorList.indexOf(data)
+                    if (newPosition != -1) {
+                        currentFilterPosition = newPosition
+                    }
+
+                    // 刷新菜单确保选中状态正确
+                    (filterListView.adapter as? BaseAdapter)?.notifyDataSetChanged()
+
+                    Log.d(TAG, "当前伪彩模式设置为: ${service.colorList[currentFilterPosition]}")
+                }
+            }
+
+            override fun onError(error: String) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "获取伪彩失败: $error", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+        })
+
+        // 添加全局点击监听（点击菜单外区域关闭菜单）
+        findViewById<View>(R.id.dragOverlay).setOnClickListener {
+            hideFilterMenu()
+        }
     }
 
     override fun onStart() {
@@ -337,5 +381,63 @@ class MainActivity : AppCompatActivity() {
                 service.turnRight()
             }
         }
+    }
+
+    // 初始化伪彩设置菜单
+    private fun setupFilterMenu() {
+        filterListView.adapter = object : ArrayAdapter<String>(
+            this,
+            android.R.layout.simple_list_item_1,
+            service.colorList
+        ) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = super.getView(position, convertView, parent) as TextView
+
+                // 设置文本样式
+                view.setTextColor(Color.WHITE)
+                view.textSize = 16f
+                view.setPadding(32, 24, 32, 24)
+
+                // 高亮当前选中项
+                if (position == currentFilterPosition) {
+                    view.setBackgroundResource(R.drawable.filter_item_selected)
+                } else {
+                    view.background = null
+                }
+
+                return view
+            }
+        }
+
+        filterListView.setOnItemClickListener { _, _, position, _ ->
+            currentFilterPosition = position
+            applyFilterEffect(service.colorList[position])
+            hideFilterMenu()
+
+            // 刷新列表更新选中状态
+            (filterListView.adapter as BaseAdapter).notifyDataSetChanged()
+        }
+    }
+
+    private fun toggleFilterMenu() {
+        if (filterMenu.visibility == View.VISIBLE) {
+            hideFilterMenu()
+        } else {
+            showFilterMenu()
+        }
+    }
+
+    private fun showFilterMenu() {
+        filterMenu.visibility = View.VISIBLE
+        // 刷新列表确保选中状态正确
+        (filterListView.adapter as BaseAdapter).notifyDataSetChanged()
+    }
+
+    private fun hideFilterMenu() {
+        filterMenu.visibility = View.GONE
+    }
+
+    private fun applyFilterEffect(colorName: String) {
+        service.setPseudoColor(colorName)
     }
 }
