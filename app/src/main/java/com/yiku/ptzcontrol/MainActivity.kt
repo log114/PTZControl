@@ -2,6 +2,7 @@ package com.yiku.ptzcontrol
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
+import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -11,7 +12,9 @@ import android.provider.Settings
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.view.View.GONE
 import android.view.View.OnTouchListener
+import android.view.View.VISIBLE
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.BaseAdapter
@@ -22,8 +25,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import com.yiku.ptzcontrol.service.BaseService
 import com.yiku.ptzcontrol.service.C12Service
 import com.yiku.ptzcontrol.utils.RtspPlayer
@@ -159,6 +164,48 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.dragOverlay).setOnClickListener {
             hideFilterMenu()
         }
+
+        // 视频一全屏
+        findViewById<ImageButton>(R.id.fullscreenButton1).setOnClickListener {
+            Log.i(TAG, "全屏")
+            player1.release()
+            player2.release()
+            findViewById<LinearLayout>(R.id.dualViewLayout).visibility = GONE
+            findViewById<PlayerView>(R.id.playerView1).visibility = GONE
+            findViewById<PlayerView>(R.id.playerView2).visibility = GONE
+            findViewById<ConstraintLayout>(R.id.fullscreenLayout).visibility = VISIBLE
+            player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView3), streamUrl1)
+        }
+        // 视频二全屏
+        findViewById<ImageButton>(R.id.fullscreenButton2).setOnClickListener {
+            player1.release()
+            player2.release()
+            findViewById<LinearLayout>(R.id.dualViewLayout).visibility = GONE
+            findViewById<PlayerView>(R.id.playerView1).visibility = GONE
+            findViewById<PlayerView>(R.id.playerView2).visibility = GONE
+            findViewById<ConstraintLayout>(R.id.fullscreenLayout).visibility = VISIBLE
+            player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView3), streamUrl2)
+        }
+        // 退出全屏
+        findViewById<ImageButton>(R.id.exitFullscreenButton).setOnClickListener {
+            findViewById<ConstraintLayout>(R.id.fullscreenLayout).visibility = GONE
+            player1.release()
+            findViewById<PlayerView>(R.id.playerView1).visibility = VISIBLE
+            findViewById<PlayerView>(R.id.playerView2).visibility = VISIBLE
+            player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView1), streamUrl1)
+            player2 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView2), streamUrl2)
+            findViewById<LinearLayout>(R.id.dualViewLayout).visibility = VISIBLE
+        }
+        // 放大
+        findViewById<ImageButton>(R.id.enlargeButton).setOnTouchListener({ v, event ->
+            service.enlarge()
+            false
+        })
+        // 缩小
+        findViewById<ImageButton>(R.id.reduceButton).setOnTouchListener({ v, event ->
+            service.reduce()
+            false
+        })
     }
 
     override fun onStart() {
@@ -205,8 +252,12 @@ class MainActivity : AppCompatActivity() {
             player1.release()
             player2.release()
             // 重新创建播放器
+            findViewById<ConstraintLayout>(R.id.fullscreenLayout).visibility = GONE
+            findViewById<PlayerView>(R.id.playerView1).visibility = VISIBLE
+            findViewById<PlayerView>(R.id.playerView2).visibility = VISIBLE
             player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView1), streamUrl1)
             player2 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView2), streamUrl2)
+            findViewById<LinearLayout>(R.id.dualViewLayout).visibility = VISIBLE
         }
         else {
             // 回到前台时恢复播放
@@ -296,9 +347,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupDragListener() {
+        val buttonsToIgnore = listOf(
+            findViewById<ImageButton>(R.id.fullscreenButton1),
+            findViewById<ImageButton>(R.id.fullscreenButton2),
+            findViewById<ImageButton>(R.id.exitFullscreenButton)
+        )
         dragOverlay!!.setOnTouchListener(OnTouchListener { v, event ->
+            // 动态检测当前触摸点是否在按钮上
+            val isOnButton = buttonsToIgnore.any { button ->
+                isTouchInView(event.rawX, event.rawY, button)
+            }
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    if (isOnButton) return@OnTouchListener false // 立即穿透
                     startX = event.x
                     startY = event.y
                     isDragging = false
@@ -309,6 +370,8 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 MotionEvent.ACTION_MOVE -> {
+                    if (isOnButton) return@OnTouchListener false // 立即穿透
+
                     val endX = event.x
                     val endY = event.y
                     val deltaX = endX - startX
@@ -345,6 +408,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (isOnButton) return@OnTouchListener false // 立即穿透
                     if (isDragging) {
                         // 停止持续触发
                         isDragging = false
@@ -360,6 +424,19 @@ class MainActivity : AppCompatActivity() {
             }
             false
         })
+    }
+
+    // 检查触摸点是否在视图区域内
+    private fun isTouchInView(rawX: Float, rawY: Float, view: View): Boolean {
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        val viewRect = Rect(
+            location[0],
+            location[1],
+            location[0] + view.width,
+            location[1] + view.height
+        )
+        return viewRect.contains(rawX.toInt(), rawY.toInt())
     }
 
     private fun processDirectionEvent(direction: Int) {

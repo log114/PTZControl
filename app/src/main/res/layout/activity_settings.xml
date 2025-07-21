@@ -94,7 +94,7 @@
             android:id="@+id/appVersion"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="v0.8.1"
+            android:text=""
             android:textColor="#BFFFFFFF"
             android:textSize="12sp"
             android:paddingTop="32dp"

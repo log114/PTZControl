@@ -6,68 +6,115 @@
     android:layout_height="match_parent"
     android:background="@color/black"
     tools:context=".MainActivity">
-
+    <!-- 双画面布局 -->
     <LinearLayout
+        android:id="@+id/dualViewLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:baselineAligned="false"
         android:orientation="horizontal"
         android:weightSum="2">
 
-        <!-- 视频流1 -->
-        <androidx.media3.ui.PlayerView
-            android:id="@+id/playerView1"
+        <!-- 视频流1 + 全屏按钮 -->
+        <FrameLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1"
-            app:surface_type="surface_view"
-            app:use_controller="false" />
+            android:layout_weight="1">
 
-        <!-- 视频流2 -->
-        <androidx.media3.ui.PlayerView
-            android:id="@+id/playerView2"
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/playerView1"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:surface_type="surface_view"
+                app:use_controller="false" />
+
+            <!-- 全屏按钮 (右上角) -->
+            <ImageButton
+                android:id="@+id/fullscreenButton1"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_margin="8dp"
+                android:src="@drawable/open_full_screen"
+                android:scaleType="fitCenter"
+                android:adjustViewBounds="true"
+                android:padding="4dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="全屏显示"
+                android:layout_gravity="top|end"/>
+        </FrameLayout>
+
+        <!-- 视频流2 + 全屏按钮 -->
+        <FrameLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1"
-            app:surface_type="surface_view"
-            app:use_controller="false" />
+            android:layout_weight="1">
+
+            <!-- 全屏按钮 (右上角) -->
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/playerView2"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:surface_type="surface_view"
+                app:use_controller="false" />
+
+            <ImageButton
+                android:id="@+id/fullscreenButton2"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_margin="8dp"
+                android:src="@drawable/open_full_screen"
+                android:scaleType="fitCenter"
+                android:adjustViewBounds="true"
+                android:padding="4dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="全屏显示"
+                android:layout_gravity="top|end"/>
+        </FrameLayout>
     </LinearLayout>
+
+    <!-- 全屏布局 -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/fullscreenLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/playerView3"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            app:surface_type="surface_view"
+            app:use_controller="false"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"/>
+
+        <!-- 退出全屏按钮 (右上角) -->
+        <ImageButton
+            android:id="@+id/exitFullscreenButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_margin="8dp"
+            android:src="@drawable/exit_full_screen"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="6dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="退出全屏"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"/>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
     <!-- 透明覆盖层用于捕获拖拽事件 -->
     <View
         android:id="@+id/dragOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_marginTop="50dp"
         android:background="@android:color/transparent"/>
 
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentEnd="true"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:orientation="horizontal">
-
-        <!-- 热成像颜色设置按钮 -->
-        <ImageButton
-            android:id="@+id/filterButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="8dp"
-            android:src="@drawable/pseudo_color_setting"
-            android:scaleType="fitCenter"
-            android:adjustViewBounds="true"
-            android:padding="8dp"
-            android:background="@drawable/round_button_pressed"
-            android:contentDescription="滤镜选择"/>
-
-        <!-- 设置按钮 -->
-        <ImageButton
-            android:id="@+id/settingsButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_settings"
-            android:background="@drawable/round_button_pressed"
-            android:contentDescription="设置"/>
-    </LinearLayout>
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -77,6 +124,30 @@
         android:layout_alignParentEnd="true"
         android:orientation="horizontal"
         android:gravity="end">
+        <!-- 云台偏航回中 -->
+        <ImageButton
+            android:id="@+id/enlargeButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/enlarge"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="4dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="放大"/>
+        <!-- 云台偏航回中 -->
+        <ImageButton
+            android:id="@+id/reduceButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/reduce"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="6dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="缩小"/>
         <!-- 云台偏航回中 -->
         <ImageButton
             android:id="@+id/yawToCEnterButton"
@@ -113,6 +184,27 @@
             android:padding="4dp"
             android:background="@drawable/round_button_pressed"
             android:contentDescription="云台俯仰向下"/>
+        <!-- 热成像颜色设置按钮 -->
+        <ImageButton
+            android:id="@+id/filterButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/pseudo_color_setting"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="8dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="热成像颜色设置"/>
+        <!-- 设置按钮 -->
+        <ImageButton
+            android:id="@+id/settingsButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_settings"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="设置"/>
     </LinearLayout>
 
     <!-- 伪彩选择弹出框 -->

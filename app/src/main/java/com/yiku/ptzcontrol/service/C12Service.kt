@@ -214,4 +214,11 @@ class C12Service: BaseService() {
             else -> null
         }
     }
+
+    override fun enlarge() {
+        send("#TPUD2wDZM0A")
+    }
+    override fun reduce() {
+        send("#TPUD2wDZM0B")
+    }
 }
