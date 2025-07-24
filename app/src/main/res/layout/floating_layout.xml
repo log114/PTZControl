@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- 主容器 -->
     <LinearLayout
+        android:id="@+id/mainContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#80000000">
+        android:background="#80000000"
+        app:layout_constraintTop_toTopOf="parent">
 
         <!-- 标题栏 -->
         <RelativeLayout
@@ -30,30 +36,62 @@
                 android:src="@android:drawable/ic_menu_close_clear_cancel"/>
         </RelativeLayout>
 
-        <!-- 双视频容器 -->
+        <!-- 视频容器改为FrameLayout实现灵活显示 -->
         <LinearLayout
-            xmlns:app="http://schemas.android.com/apk/res-auto"
+            android:id="@+id/videoContainer"
             android:layout_width="match_parent"
             android:layout_height="220dp"
-            android:orientation="horizontal"
-            android:weightSum="2">
+            android:orientation="horizontal">
 
-            <androidx.media3.ui.PlayerView
-                android:id="@+id/floatingPlayer1"
+            <!-- 视频1 带关闭按钮 -->
+            <FrameLayout
+                android:id="@+id/player1Container"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                app:surface_type="surface_view"
-                app:use_controller="false"/>
+                android:visibility="gone">
 
-            <androidx.media3.ui.PlayerView
-                android:id="@+id/floatingPlayer2"
+                <androidx.media3.ui.PlayerView
+                    android:id="@+id/floatingPlayer1"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:surface_type="surface_view"
+                    app:use_controller="false"/>
+
+                <ImageButton
+                    android:id="@+id/closePlayer1"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_gravity="end|top"
+                    android:src="@android:drawable/ic_delete"
+                    android:background="?attr/selectableItemBackground"
+                    android:contentDescription="关闭播放器1"/>
+            </FrameLayout>
+
+            <!-- 视频2 带关闭按钮 -->
+            <FrameLayout
+                android:id="@+id/player2Container"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                app:surface_type="surface_view"
-                app:use_controller="false"/>
+                android:visibility="gone">
+
+                <androidx.media3.ui.PlayerView
+                    android:id="@+id/floatingPlayer2"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:surface_type="surface_view"
+                    app:use_controller="false"/>
+
+                <ImageButton
+                    android:id="@+id/closePlayer2"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_gravity="end|top"
+                    android:src="@android:drawable/ic_delete"
+                    android:background="?attr/selectableItemBackground"
+                    android:contentDescription="关闭播放器2"/>
+            </FrameLayout>
         </LinearLayout>
     </LinearLayout>
-
 </androidx.constraintlayout.widget.ConstraintLayout>
