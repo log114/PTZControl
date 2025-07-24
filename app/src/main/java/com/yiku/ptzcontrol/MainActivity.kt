@@ -30,7 +30,9 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.yiku.ptzcontrol.service.BaseService
+import com.yiku.ptzcontrol.service.BaseService.OnDataReceivedListener
 import com.yiku.ptzcontrol.service.C12Service
+import com.yiku.ptzcontrol.utils.CommonMethods
 import com.yiku.ptzcontrol.utils.RtspPlayer
 import kotlin.math.abs
 
@@ -63,6 +65,7 @@ class MainActivity : AppCompatActivity() {
     private val MIN_DISTANCE: Int = 100 // 最小拖拽距离（像素）
     private val triggerHandler = Handler(Looper.getMainLooper())
     private var isDragging = false
+    private var isStopDrag = false
     private var currentDirection: Int = 0
     private var triggerRunnable: Runnable? = null
     private lateinit var prefs: SharedPreferences
@@ -71,6 +74,8 @@ class MainActivity : AppCompatActivity() {
     private var currentFilterPosition = 0
     private lateinit var filterMenu: LinearLayout
     private lateinit var filterListView: ListView
+    private var pitchState = 0 // 俯仰状态，0：未到限位，1：已达上限位，2：已达下限位
+    private var yawState = 0  // 偏航状态，0：未到限位，1：已达左限位，2：已达右限位
 
     @UnstableApi
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,21 +110,10 @@ class MainActivity : AppCompatActivity() {
             isSetting = true
             openSettingsActivity()
         }
-
-        // 偏航回中按钮点击事件
-        findViewById<ImageButton>(R.id.yawToCEnterButton).setOnClickListener {
-            Toast.makeText(this, "偏航回中", Toast.LENGTH_SHORT).show()
-            service.yawToCenter()
-        }
         // 云台回中按钮点击事件
         findViewById<ImageButton>(R.id.ptzToCenterButton).setOnClickListener {
             Toast.makeText(this, "云台回中", Toast.LENGTH_SHORT).show()
             service.yawAndPitchToCenter()
-        }
-        // 俯仰朝下按钮点击事件
-        findViewById<ImageButton>(R.id.pitchToCenterButton).setOnClickListener {
-            Toast.makeText(this, "俯仰朝下", Toast.LENGTH_SHORT).show()
-            service.pitchDownwards()
         }
 
         dragOverlay = findViewById(R.id.dragOverlay);
@@ -206,6 +200,51 @@ class MainActivity : AppCompatActivity() {
             service.reduce()
             false
         })
+
+        service.ptzAnglePush(true)
+        setDataReceivedListener()
+    }
+
+    private fun setDataReceivedListener() {
+        val listener = object : OnDataReceivedListener {
+            override fun onDataReceived(data: String) {
+                // 云台数据
+                if(data.contains("#tpUGCrGAC")) {
+                    if (data.length < 24) {
+                        return
+                    }
+                    val yawStateStr = data.substring(10, 14)
+                    val pitchStateStr = data.substring(14, 18)
+                    val yawStateNum = CommonMethods.hexToSignedInt(yawStateStr)
+                    val pitchStateNum = CommonMethods.hexToSignedInt(pitchStateStr)
+
+                    Log.d(TAG, "yawStateStr=${yawStateNum}")
+                    Log.d(TAG, "pitchStateStr=${pitchStateNum}")
+
+                    yawState = if(yawStateNum >= 9040) {
+                        1
+                    } else if(yawStateNum <= -9040) {
+                        2
+                    } else {
+                        0
+                    }
+
+                    pitchState = if(pitchStateNum >= 3020) {
+                        1
+                    } else if(pitchStateNum <= -9020) {
+                        2
+                    } else {
+                        0
+                    }
+                }
+            }
+            override fun onError(error: String) {
+                Log.e(TAG, error)
+            }
+        }
+
+        // 注册临时监听器并发送命令
+        service.setGlobalListener(listener)
     }
 
     override fun onStart() {
@@ -308,6 +347,8 @@ class MainActivity : AppCompatActivity() {
         // 释放播放器资源
         player1.release()
         player2.release()
+        service.ptzAnglePush(false)
+        service.disconnect()
         Log.d(TAG, "onDestroy，floatingView：${floatingManager.isFloatingWindowShowing()}")
     }
 
@@ -347,22 +388,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupDragListener() {
-        val buttonsToIgnore = listOf(
-            findViewById<ImageButton>(R.id.fullscreenButton1),
-            findViewById<ImageButton>(R.id.fullscreenButton2),
-            findViewById<ImageButton>(R.id.exitFullscreenButton)
-        )
         dragOverlay!!.setOnTouchListener(OnTouchListener { v, event ->
-            // 动态检测当前触摸点是否在按钮上
-            val isOnButton = buttonsToIgnore.any { button ->
-                isTouchInView(event.rawX, event.rawY, button)
-            }
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    if (isOnButton) return@OnTouchListener false // 立即穿透
                     startX = event.x
                     startY = event.y
                     isDragging = false
+                    isStopDrag = false
                     currentDirection = DIRECTION_NONE
                     // 处理点击事件开始
                     v.performClick()
@@ -370,8 +402,9 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    if (isOnButton) return@OnTouchListener false // 立即穿透
-
+                    if(isStopDrag) {
+                        return@OnTouchListener true
+                    }
                     val endX = event.x
                     val endY = event.y
                     val deltaX = endX - startX
@@ -408,13 +441,8 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (isOnButton) return@OnTouchListener false // 立即穿透
                     if (isDragging) {
-                        // 停止持续触发
-                        isDragging = false
-                        triggerRunnable?.let { triggerHandler.removeCallbacks(it) }
-                        currentDirection = DIRECTION_NONE
-                        Toast.makeText(this, "停止拖拽", Toast.LENGTH_SHORT).show()
+                        stopTrigger()
                     } else {
                         // 处理点击事件结束
                         v.performClick()
@@ -426,38 +454,56 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // 检查触摸点是否在视图区域内
-    private fun isTouchInView(rawX: Float, rawY: Float, view: View): Boolean {
-        val location = IntArray(2)
-        view.getLocationOnScreen(location)
-        val viewRect = Rect(
-            location[0],
-            location[1],
-            location[0] + view.width,
-            location[1] + view.height
-        )
-        return viewRect.contains(rawX.toInt(), rawY.toInt())
-    }
-
     private fun processDirectionEvent(direction: Int) {
+        if (!isDragging) return
         when (direction) {
             DIRECTION_UP -> {
-                Log.d(TAG, "持续上移: ${System.currentTimeMillis()}")
+                if(pitchState == 1) {
+                    isStopDrag = true
+                    stopTrigger()
+                    Log.i(TAG, "俯仰已达限位")
+                    Toast.makeText(this, "俯仰已达限位", Toast.LENGTH_SHORT).show()
+                    return
+                }
                 service.turnUpwards()
             }
             DIRECTION_DOWN -> {
-                Log.d(TAG, "持续下移: ${System.currentTimeMillis()}")
+                if(pitchState == 2) {
+                    isStopDrag = true
+                    stopTrigger()
+                    Log.i(TAG, "俯仰已达限位")
+                    Toast.makeText(this, "俯仰已达限位", Toast.LENGTH_SHORT).show()
+                    return
+                }
                 service.turnDownwards()
             }
             DIRECTION_LEFT -> {
-                Log.d(TAG, "持续左移: ${System.currentTimeMillis()}")
+                if(yawState == 1) {
+                    isStopDrag = true
+                    stopTrigger()
+                    Log.i(TAG, "偏航已达限位")
+                    Toast.makeText(this, "偏航已达限位", Toast.LENGTH_SHORT).show()
+                    return
+                }
                 service.turnLeft()
             }
             DIRECTION_RIGHT -> {
-                Log.d(TAG, "持续右移: ${System.currentTimeMillis()}")
+                if(yawState == 2) {
+                    isStopDrag = true
+                    stopTrigger()
+                    Log.i(TAG, "偏航已达限位")
+                    Toast.makeText(this, "偏航已达限位", Toast.LENGTH_SHORT).show()
+                    return
+                }
                 service.turnRight()
             }
         }
+    }
+    private fun stopTrigger() {
+        isDragging = false
+        triggerRunnable?.let { triggerHandler.removeCallbacks(it) }
+        triggerRunnable = null
+        currentDirection = DIRECTION_NONE
     }
 
     // 初始化伪彩设置菜单

@@ -7,6 +7,7 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.util.concurrent.atomic.AtomicReference
 
 class C12Service: BaseService() {
     private lateinit var socket: DatagramSocket
@@ -15,7 +16,43 @@ class C12Service: BaseService() {
     private val serverPort = 5000
     private var isConnected = false
     private val TAG = "C12Service"
+    private var stopReceiver = false
+    private val globalListener = AtomicReference<OnDataReceivedListener?>(null)
+    private var receiverThread: Thread? = null
     override val colorList = listOf("白热", "辉金", "铁红", "彩虹", "微光", "极光", "红热", "丛林", "医疗", "黑热", "金红")
+
+    // 设置全局监听器（持续接收消息）
+    override fun setGlobalListener(listener: OnDataReceivedListener?) {
+        globalListener.set(listener)
+    }
+
+    // 启动持续接收线程
+    private fun startReceiverThread() {
+        receiverThread = Thread {
+            val buffer = ByteArray(1024)
+            val packet = DatagramPacket(buffer, buffer.size)
+            while (!stopReceiver && isConnected) {
+                try {
+                    socket.receive(packet)
+                    val response = String(packet.data, 0, packet.length, Charsets.UTF_8)
+                    Log.i(TAG, "收到响应: $response")
+
+                    // 触发全局监听器回调
+                    globalListener.get()?.onDataReceived(response)
+                } catch (e: SocketTimeoutException) {
+                    // 超时继续循环
+                } catch (e: Exception) {
+                    Log.e(TAG, "持续接收异常: ${e.message}")
+                    if (!stopReceiver) {
+                        Thread.sleep(1000) // 暂停后重试
+                    }
+                }
+            }
+            Log.i(TAG, "接收线程停止")
+        }.apply {
+            start()
+        }
+    }
 
     override fun connect(host: String): Boolean {
         currentHost = host
@@ -37,6 +74,9 @@ class C12Service: BaseService() {
             }
             isConnected = true
             Log.i(TAG, "已连接到 $host:$serverPort")
+            // 启动持续接收线程
+            stopReceiver = false
+            startReceiverThread()
             true
         } catch (e: Exception) {
             Log.e(TAG, "连接失败: ${e.message}")
@@ -49,6 +89,9 @@ class C12Service: BaseService() {
     }
 
     override fun disconnect() {
+        stopReceiver = true
+        receiverThread?.interrupt()
+        receiverThread = null
         if (::socket.isInitialized) {
             socket.close()
             isConnected = false
@@ -56,7 +99,7 @@ class C12Service: BaseService() {
         }
     }
 
-    override fun send(data: String, listener: OnDataReceivedListener?) {
+    override fun send(data: String) {
         if (!isConnected) {
             Log.w(TAG, "尝试发送但未连接")
             if (!connect(currentHost)) {
@@ -68,37 +111,13 @@ class C12Service: BaseService() {
             try {
                 val command = YunZhuoCrc.formatCommandWithCrc(data)
                 Log.i(TAG, "发送：$command")
-                Log.d(TAG, "命令字节: ${command.toByteArray().joinToString { "%02x".format(it) }}")
-                Log.i(TAG, "ip：$serverAddress, 端口：$serverPort")
                 val commandBytes = command.toByteArray(Charsets.UTF_8)
                 val packet = DatagramPacket(commandBytes, commandBytes.size, serverAddress, serverPort)
                 socket.send(packet)
                 Log.i(TAG, "UDP数据包已发送")
-                listener?.let {
-                    // 设置超时时间，避免一直阻塞
-                    socket.soTimeout = 3000
-                    try {
-                        // 接收缓冲区
-                        val buffer = ByteArray(1024)
-                        val receivePacket = DatagramPacket(buffer, buffer.size)
-                        socket.receive(receivePacket)
-                        val response = String(receivePacket.data, 0, receivePacket.length, Charsets.UTF_8)
-                        Log.i(TAG, "收到响应: $response")
-
-                        it.onDataReceived(response)
-                    } catch (e: SocketTimeoutException) {
-                        Log.e(TAG, "接收超时")
-                        it.onError("接收超时")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "接收异常: ${e.message}")
-                        it.onError("接收异常: ${e.message}")
-                    } finally {
-                        // 重置超时时间
-                        socket.soTimeout = 3000 // 或者你原来的超时设置
-                    }
-                }
             } catch (e: Exception) {
                 Log.e(TAG, "发送失败: ${e.message}")
+                globalListener.get()?.onError("发送失败: ${e.message}")
             }
         }.start()
     }
@@ -131,22 +150,38 @@ class C12Service: BaseService() {
         send("#TPUG6wGAPDCD82D")
     }
 
+    override fun ptzAnglePush(switch: Boolean) {
+        var data = "00"
+        if(switch) {
+            data = "01"
+        }
+        send("#TPUG2wGAA${data}")
+    }
+
     override fun setIp(ip: String) {
         send("#tpUDDwIPV${ip}")
     }
 
     override fun getPseudoColor(listener: OnDataReceivedListener) {
-        send("#TPUD2rIMG00", object : OnDataReceivedListener {
+        // 设置临时监听器（响应后自动移除）
+        val tempListener = object : OnDataReceivedListener {
             override fun onDataReceived(data: String) {
-                if(-1 != data.indexOf("#TPDU1rIMG")) {
-                    parsePseudoColorResponse(data)?.let { listener.onDataReceived(it) }
+                if(data.contains("#TPDU1rIMG")) {
+                    parsePseudoColorResponse(data)?.let {
+                        listener.onDataReceived(it)
+                    }
+                    globalListener.compareAndSet(this, null) // 移除临时监听器
                 }
             }
-
             override fun onError(error: String) {
                 listener.onError(error)
+                globalListener.compareAndSet(this, null)
             }
-        })
+        }
+
+        // 注册临时监听器并发送命令
+        globalListener.set(tempListener)
+        send("#TPUD2rIMG00")
     }
 
     override fun setPseudoColor(colorName: String) {

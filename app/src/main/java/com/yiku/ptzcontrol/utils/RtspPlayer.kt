@@ -44,10 +44,10 @@ object RtspPlayer {
             .setLoadControl(
                 DefaultLoadControl.Builder()
                     .setBufferDurationsMs(
-                        50,    // 最小缓冲时间（ms）
-                        200,   // 最大缓冲时间（ms） - 通常小缓冲意味着低延迟
-                        30,    // 开始播放缓冲时间
-                        50    // 重新缓冲时间
+                        0,    // 最小缓冲时间（ms）
+                        0,   // 最大缓冲时间（ms） - 通常小缓冲意味着低延迟
+                        0,    // 开始播放缓冲时间
+                        0    // 重新缓冲时间
                     )
                     .setPrioritizeTimeOverSizeThresholds(true) // 优先考虑时间阈值
                     .build()

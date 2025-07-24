@@ -1,7 +1,7 @@
 package com.yiku.ptzcontrol.utils
 
 object YunZhuoCrc {
-    private val CRC_MASK = 0xFF
+    private const val CRC_MASK = 0xFF
 
     // 主计算方法
     fun formatCommandWithCrc(baseCommand: String): String {
