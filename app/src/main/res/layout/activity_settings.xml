@@ -58,7 +58,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="视频流地址1"
+            android:text="可见光视频流地址"
             android:textColor="@android:color/white"
             android:textSize="16sp"
             android:paddingTop="24dp"
@@ -75,7 +75,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="视频流地址2"
+            android:text="热成像视频流地址"
             android:textColor="@android:color/white"
             android:textSize="16sp"
             android:paddingTop="24dp"

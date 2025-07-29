@@ -20,10 +20,20 @@ import androidx.media3.ui.PlayerView
 
 @UnstableApi
 object RtspPlayer {
+    interface PlayerErrorListener {
+        fun onPlayerError(playerId: Int, exception: Exception)
+    }
+
     private val TAG = "RtspPlayer"
     private var player: ExoPlayer? = null
 
-    fun createPlayer(context: Context, playerView: PlayerView, url: String): ExoPlayer {
+    fun createPlayer(
+        context: Context,
+        playerView: PlayerView,
+        url: String,
+        playerId: Int, // 标识播放器 (1-小窗, 2-全屏)
+        errorListener: PlayerErrorListener? = null // 错误回调
+    ): ExoPlayer {
         // 1. 创建ExoPlayer实例，并配置为低延迟模式
         val renderersFactory = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true) // 开启解码器后备支持
@@ -74,13 +84,24 @@ object RtspPlayer {
                         player?.playbackParameters = PlaybackParameters(1.0f)
                     }
                     ExoPlayer.STATE_BUFFERING -> Log.d("PlayerState", "Player buffering")
-                    ExoPlayer.STATE_ENDED -> Log.d("PlayerState", "Player ended")
+                    ExoPlayer.STATE_ENDED -> {
+                        Log.d("PlayerState", "Player ended")
+                        // 流意外结束，视为错误
+                        errorListener?.onPlayerError(
+                            playerId,
+                            Exception("Player $playerId stream ended unexpectedly")
+                        )
+                    }
                     ExoPlayer.STATE_IDLE -> Log.d("PlayerState", "Player idle")
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 Log.e("PlayerError", "Playback error: ${error.message}")
+                errorListener?.onPlayerError(
+                    playerId,
+                    Exception("Player $playerId error: ${error.message}")
+                )
             }
         })
 
@@ -114,10 +135,12 @@ object RtspPlayer {
         context: Context,
         url: String,
         startPosition: Long = 0,
-        playWhenReady: Boolean = true
+        playWhenReady: Boolean = true,
+        playerId: Int = 3, // 标识播放器 (1-小窗, 2-全屏)
+        errorListener: PlayerErrorListener? = null // 错误回调
     ): ExoPlayer {
         // 复用之前的创建逻辑
-        val player = createPlayer(context, PlayerView(context), url)
+        val player = createPlayer(context, PlayerView(context), url, playerId, errorListener)
 
         // 设置传入的状态
         player.seekTo(startPosition)

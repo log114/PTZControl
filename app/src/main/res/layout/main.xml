@@ -6,81 +6,33 @@
     android:layout_height="match_parent"
     android:background="@color/black"
     tools:context=".MainActivity">
-    <!-- 双画面布局 -->
-    <LinearLayout
-        android:id="@+id/dualViewLayout"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:baselineAligned="false"
-        android:orientation="horizontal"
-        android:weightSum="2">
 
-        <!-- 视频流1 + 全屏按钮 -->
+    <!-- 全屏布局 -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- 1. 将小窗口playerView1放在最前面 -->
         <FrameLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1">
+            android:id="@+id/smallVideoContainer"
+            android:layout_width="160dp"
+            android:layout_height="90dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent">
 
             <androidx.media3.ui.PlayerView
                 android:id="@+id/playerView1"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:scaleType="centerCrop"
                 app:surface_type="surface_view"
+                app:layout_constraintBottom_toBottomOf="parent"
                 app:use_controller="false" />
-
-            <!-- 全屏按钮 (右上角) -->
-            <ImageButton
-                android:id="@+id/fullscreenButton1"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_margin="8dp"
-                android:src="@drawable/open_full_screen"
-                android:scaleType="fitCenter"
-                android:adjustViewBounds="true"
-                android:padding="4dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="全屏显示"
-                android:layout_gravity="top|end"/>
         </FrameLayout>
 
-        <!-- 视频流2 + 全屏按钮 -->
-        <FrameLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1">
-
-            <!-- 全屏按钮 (右上角) -->
-            <androidx.media3.ui.PlayerView
-                android:id="@+id/playerView2"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:surface_type="surface_view"
-                app:use_controller="false" />
-
-            <ImageButton
-                android:id="@+id/fullscreenButton2"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_margin="8dp"
-                android:src="@drawable/open_full_screen"
-                android:scaleType="fitCenter"
-                android:adjustViewBounds="true"
-                android:padding="4dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="全屏显示"
-                android:layout_gravity="top|end"/>
-        </FrameLayout>
-    </LinearLayout>
-
-    <!-- 全屏布局 -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/fullscreenLayout"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone">
-
+        <!-- 2. 全屏播放器放在后面 -->
         <androidx.media3.ui.PlayerView
-            android:id="@+id/playerView3"
+            android:id="@+id/playerView2"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scaleType="centerCrop"
@@ -91,28 +43,12 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
-        <!-- 退出全屏按钮 (右上角) -->
-        <ImageButton
-            android:id="@+id/exitFullscreenButton"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_margin="8dp"
-            android:src="@drawable/exit_full_screen"
-            android:scaleType="fitCenter"
-            android:adjustViewBounds="true"
-            android:padding="6dp"
-            android:background="@android:color/transparent"
-            android:contentDescription="退出全屏"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"/>
-
     </androidx.constraintlayout.widget.ConstraintLayout>
     <!-- 透明覆盖层用于捕获拖拽事件 -->
     <View
         android:id="@+id/dragOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginTop="50dp"
         android:background="@android:color/transparent"/>
 
     <LinearLayout
@@ -126,28 +62,16 @@
         android:gravity="end">
         <!-- 云台偏航回中 -->
         <ImageButton
-            android:id="@+id/enlargeButton"
+            android:id="@+id/openFloatingWindowButton"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="8dp"
-            android:src="@drawable/enlarge"
-            android:scaleType="fitCenter"
-            android:adjustViewBounds="true"
-            android:padding="4dp"
-            android:background="@drawable/round_button_pressed"
-            android:contentDescription="放大"/>
-        <!-- 云台偏航回中 -->
-        <ImageButton
-            android:id="@+id/reduceButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="8dp"
-            android:src="@drawable/reduce"
+            android:src="@drawable/open_floating_window"
             android:scaleType="fitCenter"
             android:adjustViewBounds="true"
             android:padding="6dp"
             android:background="@drawable/round_button_pressed"
-            android:contentDescription="缩小"/>
+            android:contentDescription="悬浮窗显示"/>
         <!-- 云台回中 -->
         <ImageButton
             android:id="@+id/ptzToCenterButton"

@@ -2,9 +2,7 @@ package com.yiku.ptzcontrol
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
-import android.graphics.Rect
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -12,10 +10,10 @@ import android.provider.Settings
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
-import android.view.View.GONE
 import android.view.View.OnTouchListener
-import android.view.View.VISIBLE
 import android.view.ViewGroup
+import android.view.Window
+import android.view.WindowManager
 import android.widget.ArrayAdapter
 import android.widget.BaseAdapter
 import android.widget.ImageButton
@@ -25,10 +23,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import com.yiku.ptzcontrol.service.BaseService
 import com.yiku.ptzcontrol.service.BaseService.OnDataReceivedListener
 import com.yiku.ptzcontrol.service.C12Service
@@ -37,7 +33,8 @@ import com.yiku.ptzcontrol.utils.RtspPlayer
 import kotlin.math.abs
 
 
-class MainActivity : AppCompatActivity() {
+@UnstableApi
+class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
     companion object {
         const val OVERLAY_PERMISSION_CODE = 1000
         const val DIRECTION_NONE = 0
@@ -77,9 +74,19 @@ class MainActivity : AppCompatActivity() {
     private var pitchState = 0 // 俯仰状态，0：未到限位，1：已达上限位，2：已达下限位
     private var yawState = 0  // 偏航状态，0：未到限位，1：已达左限位，2：已达右限位
 
+    private val errorRetryCounters = mutableMapOf<Int, Int>() // playerId -> retry count
+    private val MAX_RETRY_COUNT = 20 // 最大重试次数
+    private val RETRY_DELAY = 3000L // 重试延迟时间 (毫秒)
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     @UnstableApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestWindowFeature(Window.FEATURE_NO_TITLE) // 隐藏标题栏（如果存在）
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+            WindowManager.LayoutParams.FLAG_FULLSCREEN
+        )
         setContentView(R.layout.main)
 
         Log.d(TAG, "onCreate")
@@ -97,8 +104,20 @@ class MainActivity : AppCompatActivity() {
         service.connect(host)
 
         // 初始化播放器
-        player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView1), streamUrl1)
-        player2 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView2), streamUrl2)
+        player1 = RtspPlayer.createPlayer(
+            this,
+            findViewById(R.id.playerView1),
+            streamUrl1,
+            playerId = 1,
+            errorListener = this
+        )
+        player2 = RtspPlayer.createPlayer(
+            this,
+            findViewById(R.id.playerView2),
+            streamUrl2,
+            playerId = 2,
+            errorListener = this
+        )
 
         floatingManager = FloatingWindowManager(this)
 
@@ -159,47 +178,10 @@ class MainActivity : AppCompatActivity() {
             hideFilterMenu()
         }
 
-        // 视频一全屏
-        findViewById<ImageButton>(R.id.fullscreenButton1).setOnClickListener {
-            Log.i(TAG, "全屏")
-            player1.release()
-            player2.release()
-            findViewById<LinearLayout>(R.id.dualViewLayout).visibility = GONE
-            findViewById<PlayerView>(R.id.playerView1).visibility = GONE
-            findViewById<PlayerView>(R.id.playerView2).visibility = GONE
-            findViewById<ConstraintLayout>(R.id.fullscreenLayout).visibility = VISIBLE
-            player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView3), streamUrl1)
+        // 悬浮窗显示
+        findViewById<ImageButton>(R.id.openFloatingWindowButton).setOnClickListener {
+            this.moveTaskToBack(true)
         }
-        // 视频二全屏
-        findViewById<ImageButton>(R.id.fullscreenButton2).setOnClickListener {
-            player1.release()
-            player2.release()
-            findViewById<LinearLayout>(R.id.dualViewLayout).visibility = GONE
-            findViewById<PlayerView>(R.id.playerView1).visibility = GONE
-            findViewById<PlayerView>(R.id.playerView2).visibility = GONE
-            findViewById<ConstraintLayout>(R.id.fullscreenLayout).visibility = VISIBLE
-            player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView3), streamUrl2)
-        }
-        // 退出全屏
-        findViewById<ImageButton>(R.id.exitFullscreenButton).setOnClickListener {
-            findViewById<ConstraintLayout>(R.id.fullscreenLayout).visibility = GONE
-            player1.release()
-            findViewById<PlayerView>(R.id.playerView1).visibility = VISIBLE
-            findViewById<PlayerView>(R.id.playerView2).visibility = VISIBLE
-            player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView1), streamUrl1)
-            player2 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView2), streamUrl2)
-            findViewById<LinearLayout>(R.id.dualViewLayout).visibility = VISIBLE
-        }
-        // 放大
-        findViewById<ImageButton>(R.id.enlargeButton).setOnTouchListener({ v, event ->
-            service.enlarge()
-            false
-        })
-        // 缩小
-        findViewById<ImageButton>(R.id.reduceButton).setOnTouchListener({ v, event ->
-            service.reduce()
-            false
-        })
 
         service.ptzAnglePush(true)
         setDataReceivedListener()
@@ -290,13 +272,21 @@ class MainActivity : AppCompatActivity() {
             // 释放播放器
             player1.release()
             player2.release()
-            // 重新创建播放器
-            findViewById<ConstraintLayout>(R.id.fullscreenLayout).visibility = GONE
-            findViewById<PlayerView>(R.id.playerView1).visibility = VISIBLE
-            findViewById<PlayerView>(R.id.playerView2).visibility = VISIBLE
-            player1 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView1), streamUrl1)
-            player2 = RtspPlayer.createPlayer(this, findViewById(R.id.playerView2), streamUrl2)
-            findViewById<LinearLayout>(R.id.dualViewLayout).visibility = VISIBLE
+            // 初始化播放器
+            player1 = RtspPlayer.createPlayer(
+                this,
+                findViewById(R.id.playerView1),
+                streamUrl1,
+                playerId = 1,
+                errorListener = this
+            )
+            player2 = RtspPlayer.createPlayer(
+                this,
+                findViewById(R.id.playerView2),
+                streamUrl2,
+                playerId = 2,
+                errorListener = this
+            )
         }
         else {
             // 回到前台时恢复播放
@@ -330,10 +320,8 @@ class MainActivity : AppCompatActivity() {
             // 尝试显示悬浮窗
             if (floatingManager.checkOverlayPermission()) {
                 floatingManager.showFloatingWindow(
-                    streamUrl1 = streamUrl1,  // 传递URL而非播放器
-                    streamUrl2 = streamUrl2,
-                    playWhenReady1 = player1PlayWhenReady,
-                    playWhenReady2 = player2PlayWhenReady
+                    streamUrl = streamUrl2,
+                    playWhenReady = player2PlayWhenReady
                 )
             } else {
                 Log.d(TAG, "Floating window permission not granted")
@@ -349,6 +337,11 @@ class MainActivity : AppCompatActivity() {
         player2.release()
         service.ptzAnglePush(false)
         service.disconnect()
+        // 确保关闭悬浮窗
+        floatingManager.closeFloatingWindow()
+        // 停止所有后台任务
+        triggerHandler.removeCallbacksAndMessages(null)
+        mainHandler.removeCallbacksAndMessages(null)
         Log.d(TAG, "onDestroy，floatingView：${floatingManager.isFloatingWindowShowing()}")
     }
 
@@ -562,5 +555,69 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyFilterEffect(colorName: String) {
         service.setPseudoColor(colorName)
+    }
+
+    override fun onPlayerError(playerId: Int, exception: Exception) {
+        runOnUiThread {
+            val message = when (playerId) {
+                1 -> "可见光视频播放失败"
+                2 -> "热成像视频播放失败"
+                else -> "视频播放异常"
+            }
+
+//            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            Log.e(TAG, "Player $playerId error", exception)
+
+            // 自动重试逻辑
+            val retryCount = errorRetryCounters.getOrDefault(playerId, 0)
+            if (retryCount < MAX_RETRY_COUNT) {
+                Toast.makeText(this, "$message, 将在3秒后尝试重连...", Toast.LENGTH_SHORT).show()
+                errorRetryCounters[playerId] = retryCount + 1
+
+                mainHandler.postDelayed({
+                    // 重连前检查Activity状态
+                    if (!isFinishing && !isDestroyed) {
+                        tryReloadPlayer(playerId)
+                    }
+                }, RETRY_DELAY)
+            } else {
+                Toast.makeText(this, "重连失败，请检查网络或设置", Toast.LENGTH_LONG).show()
+                // 重置重试计数器
+                errorRetryCounters[playerId] = 0
+            }
+        }
+    }
+    // 重试加载播放器
+    private fun tryReloadPlayer(playerId: Int) {
+        if (isFinishing || isDestroyed) {
+            Log.d(TAG, "Activity已销毁，取消重连播放器$playerId")
+            return
+        }
+        try {
+            when (playerId) {
+                1 -> {
+                    player1.release()
+                    player1 = RtspPlayer.createPlayer(
+                        this,
+                        findViewById(R.id.playerView1),
+                        streamUrl1,
+                        playerId = 1,
+                        errorListener = this
+                    )
+                }
+                2 -> {
+                    player2.release()
+                    player2 = RtspPlayer.createPlayer(
+                        this,
+                        findViewById(R.id.playerView2),
+                        streamUrl2,
+                        playerId = 2,
+                        errorListener = this
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "重载播放器失败", e)
+        }
     }
 }

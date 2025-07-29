@@ -9,89 +9,44 @@
     <!-- 主容器 -->
     <LinearLayout
         android:id="@+id/mainContainer"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:background="#80000000"
         app:layout_constraintTop_toTopOf="parent">
 
-        <!-- 标题栏 -->
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:background="#4CAF50">
+        <FrameLayout
+            android:id="@+id/playerContainer"
+            android:layout_width="wrap_content"
+            android:layout_height="180dp"
+            android:clipChildren="false">
 
-            <TextView
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/floatingPlayer"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:text="悬浮播放中"
-                android:gravity="center"/>
-
+                android:scaleType="centerInside"
+                app:surface_type="surface_view"
+                app:use_controller="false"/>
+            <ImageButton
+                android:id="@+id/exitBtn"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:padding="4dp"
+                android:scaleType="fitCenter"
+                android:adjustViewBounds="true"
+                android:layout_gravity="start|top"
+                android:src="@drawable/exit_floating_window"
+                android:background="?attr/selectableItemBackground"
+                android:contentDescription="退出悬浮窗并回到APP"/>
             <ImageButton
                 android:id="@+id/closeBtn"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_alignParentEnd="true"
-                android:contentDescription="关闭悬浮窗"
-                android:src="@android:drawable/ic_menu_close_clear_cancel"/>
-        </RelativeLayout>
-
-        <!-- 视频容器改为FrameLayout实现灵活显示 -->
-        <LinearLayout
-            android:id="@+id/videoContainer"
-            android:layout_width="match_parent"
-            android:layout_height="220dp"
-            android:orientation="horizontal">
-
-            <!-- 视频1 带关闭按钮 -->
-            <FrameLayout
-                android:id="@+id/player1Container"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:visibility="gone">
-
-                <androidx.media3.ui.PlayerView
-                    android:id="@+id/floatingPlayer1"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    app:surface_type="surface_view"
-                    app:use_controller="false"/>
-
-                <ImageButton
-                    android:id="@+id/closePlayer1"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_gravity="end|top"
-                    android:src="@android:drawable/ic_delete"
-                    android:background="?attr/selectableItemBackground"
-                    android:contentDescription="关闭播放器1"/>
-            </FrameLayout>
-
-            <!-- 视频2 带关闭按钮 -->
-            <FrameLayout
-                android:id="@+id/player2Container"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:visibility="gone">
-
-                <androidx.media3.ui.PlayerView
-                    android:id="@+id/floatingPlayer2"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    app:surface_type="surface_view"
-                    app:use_controller="false"/>
-
-                <ImageButton
-                    android:id="@+id/closePlayer2"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:layout_gravity="end|top"
-                    android:src="@android:drawable/ic_delete"
-                    android:background="?attr/selectableItemBackground"
-                    android:contentDescription="关闭播放器2"/>
-            </FrameLayout>
-        </LinearLayout>
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_gravity="end|top"
+                android:src="@android:drawable/ic_delete"
+                android:background="?attr/selectableItemBackground"
+                android:contentDescription="关闭悬浮窗"/>
+        </FrameLayout>
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
