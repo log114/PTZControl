@@ -27,10 +27,16 @@
             app:layout_constraintEnd_toEndOf="parent"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
+    <!-- 透明覆盖层用于捕获拖拽事件 -->
+    <View
+        android:id="@+id/dragOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent"/>
     <!-- 小窗口容器 - 放在全屏播放器之后 -->
     <FrameLayout
         android:id="@+id/smallVideoContainer"
-        android:layout_width="160dp"
+        android:layout_width="wrap_content"
         android:layout_height="90dp"
         android:translationZ="10dp"
         android:layout_alignParentBottom="true"
@@ -38,21 +44,21 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
-        <androidx.media3.ui.PlayerView
-            android:id="@+id/playerView1"
-            android:layout_width="match_parent"
+        <androidx.media3.ui.AspectRatioFrameLayout
+            android:id="@+id/aspectRatioContainer"
+            android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
-            app:surface_type="texture_view"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:use_controller="false" />
+            android:layout_gravity="start">
+
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/playerView1"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:surface_type="texture_view"
+                app:use_controller="false"
+                app:resize_mode="fit" />
+        </androidx.media3.ui.AspectRatioFrameLayout>
     </FrameLayout>
-    <!-- 透明覆盖层用于捕获拖拽事件 -->
-    <View
-        android:id="@+id/dragOverlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@android:color/transparent"/>
 
     <LinearLayout
         android:layout_width="wrap_content"
@@ -115,8 +121,8 @@
         android:id="@+id/filterMenu"
         android:layout_width="200dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="50dp"
-        android:layout_marginStart="80dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginStart="180dp"
         android:orientation="vertical"
         android:background="@drawable/filter_menu_background"
         android:visibility="gone">

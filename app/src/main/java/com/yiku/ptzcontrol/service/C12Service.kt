@@ -18,6 +18,8 @@ class C12Service: BaseService() {
     private val TAG = "C12Service"
     private var stopReceiver = false
     private val globalListener = AtomicReference<OnDataReceivedListener?>(null)
+    private var serviceIsReady = false
+
     private var receiverThread: Thread? = null
     override val colorList = listOf("白热", "辉金", "铁红", "彩虹", "微光", "极光", "红热", "丛林", "医疗", "黑热", "金红")
 
@@ -31,16 +33,20 @@ class C12Service: BaseService() {
         receiverThread = Thread {
             val buffer = ByteArray(1024)
             val packet = DatagramPacket(buffer, buffer.size)
+            Log.i(TAG, "stopReceiver=$stopReceiver, isConnected=$isConnected")
             while (!stopReceiver && isConnected) {
+                Log.i(TAG, "持续接收：stopReceiver=$stopReceiver, isConnected=$isConnected")
                 try {
                     socket.receive(packet)
                     val response = String(packet.data, 0, packet.length, Charsets.UTF_8)
                     Log.i(TAG, "收到响应: $response")
+                    serviceIsReady = true
 
                     // 触发全局监听器回调
                     globalListener.get()?.onDataReceived(response)
                 } catch (e: SocketTimeoutException) {
                     // 超时继续循环
+                    Log.e(TAG, "消息接收超时: ${e.message}")
                 } catch (e: Exception) {
                     Log.e(TAG, "持续接收异常: ${e.message}")
                     if (!stopReceiver) {
@@ -174,6 +180,7 @@ class C12Service: BaseService() {
                 }
             }
             override fun onError(error: String) {
+                Log.i(TAG, "热成像信息接收失败")
                 listener.onError(error)
                 globalListener.compareAndSet(this, null)
             }
@@ -181,7 +188,14 @@ class C12Service: BaseService() {
 
         // 注册临时监听器并发送命令
         globalListener.set(tempListener)
-        send("#TPUD2rIMG00")
+        Thread {
+            while (!serviceIsReady) {
+                Thread.sleep(3000)
+                send("#TPUD2rIMG00")
+            }
+        }.apply {
+            start()
+        }
     }
 
     override fun setPseudoColor(colorName: String) {

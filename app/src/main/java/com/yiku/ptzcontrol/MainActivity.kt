@@ -12,7 +12,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.View.OnTouchListener
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
 import android.view.Window
 import android.view.WindowManager
 import android.widget.ArrayAdapter
@@ -27,6 +26,7 @@ import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import com.yiku.ptzcontrol.service.BaseService
 import com.yiku.ptzcontrol.service.BaseService.OnDataReceivedListener
 import com.yiku.ptzcontrol.service.C12Service
@@ -50,6 +50,9 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
     private lateinit var player1: ExoPlayer
     private lateinit var player2: ExoPlayer
     private lateinit var floatingManager: FloatingWindowManager
+    private lateinit var playerView1: PlayerView
+    private lateinit var playerView2: PlayerView
+
     private var isSetting: Boolean = false
     // 调试标签
     private val TAG = "MainActivityDebug"
@@ -81,6 +84,8 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
     private val RETRY_DELAY = 3000L // 重试延迟时间 (毫秒)
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    private var isExchangePlayer = false
+
     @UnstableApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,22 +109,10 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
 
         service = C12Service()
         service.connect(host)
+        playerView1 = findViewById(R.id.playerView1)
+        playerView2 = findViewById(R.id.playerView2)
 
-        // 初始化播放器
-        player1 = RtspPlayer.createPlayer(
-            this,
-            findViewById(R.id.playerView1),
-            streamUrl1,
-            playerId = 1,
-            errorListener = this
-        )
-        player2 = RtspPlayer.createPlayer(
-            this,
-            findViewById(R.id.playerView2),
-            streamUrl2,
-            playerId = 2,
-            errorListener = this
-        )
+        initPlayer()
 
         floatingManager = FloatingWindowManager(this)
 
@@ -152,7 +145,7 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         // 设置伪彩菜单
         setupFilterMenu()
         // 获取并设置伪彩默认选中项
-        service.getPseudoColor(object: BaseService.OnDataReceivedListener {
+        service.getPseudoColor(object: OnDataReceivedListener {
             override fun onDataReceived(data: String) {
                 runOnUiThread {
                     val newPosition = service.colorList.indexOf(data)
@@ -192,6 +185,19 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         smallContainer.post {
             smallContainer.bringToFront()
             smallContainer.invalidate()
+        }
+
+        playerView1.setOnClickListener {
+            // 释放播放器
+            player1.release()
+            player2.release()
+            // 交换连接
+            val tempUrl = streamUrl1
+            streamUrl1 = streamUrl2
+            streamUrl2 = tempUrl
+            // 重新初始化播放器
+            initPlayer()
+            isExchangePlayer = true
         }
     }
 
@@ -268,8 +274,14 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         val newStreamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.108:555/stream=2")!!
         var isUrlChange = false
         if(newStreamUrl1 != streamUrl1 || newStreamUrl2 != streamUrl2) {
-            streamUrl1 = newStreamUrl1
-            streamUrl2 = newStreamUrl2
+            if(isExchangePlayer) {
+                streamUrl1 = newStreamUrl2
+                streamUrl2 = newStreamUrl1
+            }
+            else {
+                streamUrl1 = newStreamUrl1
+                streamUrl2 = newStreamUrl2
+            }
             isUrlChange = true
         }
 
@@ -280,27 +292,32 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
             // 释放播放器
             player1.release()
             player2.release()
-            // 初始化播放器
-            player1 = RtspPlayer.createPlayer(
-                this,
-                findViewById(R.id.playerView1),
-                streamUrl1,
-                playerId = 1,
-                errorListener = this
-            )
-            player2 = RtspPlayer.createPlayer(
-                this,
-                findViewById(R.id.playerView2),
-                streamUrl2,
-                playerId = 2,
-                errorListener = this
-            )
+            // 重新初始化播放器
+            initPlayer()
         }
         else {
             // 回到前台时恢复播放
             player1.play()
             player2.play()
         }
+    }
+
+    private fun initPlayer() {
+        // 初始化播放器
+        player1 = RtspPlayer.createPlayer(
+            this,
+            playerView1,
+            streamUrl1,
+            playerId = 1,
+            errorListener = this
+        )
+        player2 = RtspPlayer.createPlayer(
+            this,
+            playerView2,
+            streamUrl2,
+            playerId = 2,
+            errorListener = this
+        )
     }
 
     override fun onPause() {
@@ -607,7 +624,7 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
                     player1.release()
                     player1 = RtspPlayer.createPlayer(
                         this,
-                        findViewById(R.id.playerView1),
+                        playerView1,
                         streamUrl1,
                         playerId = 1,
                         errorListener = this
@@ -617,7 +634,7 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
                     player2.release()
                     player2 = RtspPlayer.createPlayer(
                         this,
-                        findViewById(R.id.playerView2),
+                        playerView2,
                         streamUrl2,
                         playerId = 2,
                         errorListener = this
