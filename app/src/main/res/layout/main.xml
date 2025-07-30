@@ -10,25 +10,8 @@
     <!-- 全屏布局 -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-        <!-- 1. 将小窗口playerView1放在最前面 -->
-        <FrameLayout
-            android:id="@+id/smallVideoContainer"
-            android:layout_width="160dp"
-            android:layout_height="90dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent">
-
-            <androidx.media3.ui.PlayerView
-                android:id="@+id/playerView1"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:scaleType="centerCrop"
-                app:surface_type="surface_view"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:use_controller="false" />
-        </FrameLayout>
+        android:layout_height="match_parent"
+        android:translationZ="0dp">
 
         <!-- 2. 全屏播放器放在后面 -->
         <androidx.media3.ui.PlayerView
@@ -36,7 +19,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scaleType="centerCrop"
-            app:surface_type="surface_view"
+            app:surface_type="texture_view"
             app:use_controller="false"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
@@ -44,6 +27,26 @@
             app:layout_constraintEnd_toEndOf="parent"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
+    <!-- 小窗口容器 - 放在全屏播放器之后 -->
+    <FrameLayout
+        android:id="@+id/smallVideoContainer"
+        android:layout_width="160dp"
+        android:layout_height="90dp"
+        android:translationZ="10dp"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/playerView1"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            app:surface_type="texture_view"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:use_controller="false" />
+    </FrameLayout>
     <!-- 透明覆盖层用于捕获拖拽事件 -->
     <View
         android:id="@+id/dragOverlay"

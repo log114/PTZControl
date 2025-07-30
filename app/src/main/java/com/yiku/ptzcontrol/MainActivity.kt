@@ -12,10 +12,12 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.View.OnTouchListener
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.view.Window
 import android.view.WindowManager
 import android.widget.ArrayAdapter
 import android.widget.BaseAdapter
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ListView
@@ -163,6 +165,9 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
 
                     Log.d(TAG, "当前伪彩模式设置为: ${service.colorList[currentFilterPosition]}")
                 }
+                // 收到伪彩信息后，才发送请求，请求推送云台角度数据
+                service.ptzAnglePush(true)
+                setDataReceivedListener()
             }
 
             override fun onError(error: String) {
@@ -183,8 +188,11 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
             this.moveTaskToBack(true)
         }
 
-        service.ptzAnglePush(true)
-        setDataReceivedListener()
+        val smallContainer = findViewById<FrameLayout>(R.id.smallVideoContainer)
+        smallContainer.post {
+            smallContainer.bringToFront()
+            smallContainer.invalidate()
+        }
     }
 
     private fun setDataReceivedListener() {
@@ -203,17 +211,17 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
                     Log.d(TAG, "yawStateStr=${yawStateNum}")
                     Log.d(TAG, "pitchStateStr=${pitchStateNum}")
 
-                    yawState = if(yawStateNum >= 9040) {
+                    yawState = if(yawStateNum >= 9000) {
                         1
-                    } else if(yawStateNum <= -9040) {
+                    } else if(yawStateNum <= -9000) {
                         2
                     } else {
                         0
                     }
 
-                    pitchState = if(pitchStateNum >= 3020) {
+                    pitchState = if(pitchStateNum >= 3000) {
                         1
-                    } else if(pitchStateNum <= -9020) {
+                    } else if(pitchStateNum <= -9000) {
                         2
                     } else {
                         0
