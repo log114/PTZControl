@@ -179,6 +179,15 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         // 悬浮窗显示
         findViewById<ImageButton>(R.id.openFloatingWindowButton).setOnClickListener {
             this.moveTaskToBack(true)
+            // 尝试显示悬浮窗
+            if (floatingManager.checkOverlayPermission()) {
+                floatingManager.showFloatingWindow(
+                    streamUrl = streamUrl2,
+                    playWhenReady = player2PlayWhenReady
+                )
+            } else {
+                Log.d(TAG, "Floating window permission not granted")
+            }
         }
 
         val smallContainer = findViewById<FrameLayout>(R.id.smallVideoContainer)
@@ -341,16 +350,6 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
             // 暂停播放器
             player1.pause()
             player2.pause()
-
-            // 尝试显示悬浮窗
-            if (floatingManager.checkOverlayPermission()) {
-                floatingManager.showFloatingWindow(
-                    streamUrl = streamUrl2,
-                    playWhenReady = player2PlayWhenReady
-                )
-            } else {
-                Log.d(TAG, "Floating window permission not granted")
-            }
         }
     }
 

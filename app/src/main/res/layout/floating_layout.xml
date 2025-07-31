@@ -4,7 +4,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/rootLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#00000000">
 
     <!-- 主容器 -->
     <LinearLayout
@@ -12,13 +13,14 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#80000000"
+        android:background="#00000000"
         app:layout_constraintTop_toTopOf="parent">
 
         <FrameLayout
             android:id="@+id/playerContainer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:background="#00000000"
             android:clipChildren="false">
 
             <androidx.media3.ui.PlayerView
@@ -26,7 +28,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:scaleType="centerInside"
+                android:background="#00000000"
                 app:surface_type="surface_view"
+                app:shutter_background_color="#00000000"
                 app:use_controller="false"/>
             <ImageButton
                 android:id="@+id/exitBtn"

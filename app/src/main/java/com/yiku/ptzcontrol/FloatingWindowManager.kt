@@ -3,6 +3,7 @@ package com.yiku.ptzcontrol
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.os.Build
@@ -74,6 +75,7 @@ class FloatingWindowManager(private val context: Context) {
         try {
             // 创建悬浮窗视图
             floatingView = LayoutInflater.from(context).inflate(R.layout.floating_layout, null).apply {
+                setBackgroundColor(Color.TRANSPARENT)
                 // 获取按钮引用
                 val exitBtn = findViewById<ImageButton>(R.id.exitBtn)
                 val closeBtn = findViewById<ImageButton>(R.id.closeBtn)
