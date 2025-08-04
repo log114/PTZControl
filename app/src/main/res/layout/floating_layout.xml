@@ -5,7 +5,8 @@
     android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#00000000">
+    android:background="#00000000"
+    android:visibility="invisible">
 
     <!-- 主容器 -->
     <LinearLayout
@@ -29,8 +30,9 @@
                 android:layout_height="match_parent"
                 android:scaleType="centerInside"
                 android:background="#00000000"
-                app:surface_type="surface_view"
+                app:surface_type="texture_view"
                 app:shutter_background_color="#00000000"
+                android:visibility="invisible"
                 app:use_controller="false"/>
             <ImageButton
                 android:id="@+id/exitBtn"

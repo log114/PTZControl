@@ -20,6 +20,7 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import androidx.annotation.OptIn
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -106,6 +107,8 @@ class FloatingWindowManager(private val context: Context) {
                         playWhenReady = playWhenReady
                     ).also { player ->
                         playerView?.player = player
+                        findViewById<ConstraintLayout>(R.id.rootLayout).visibility = View.VISIBLE
+                        playerView?.visibility = View.VISIBLE
                     }
                 }
 
