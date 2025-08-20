@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.PointF
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -25,6 +26,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.yiku.ptzcontrol.utils.RtspPlayer
+import org.videolan.libvlc.LibVLC
+import org.videolan.libvlc.Media
+import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.util.VLCVideoLayout
 import kotlin.math.abs
 import kotlin.math.sqrt
 
@@ -32,9 +37,10 @@ import kotlin.math.sqrt
 class FloatingWindowManager(private val context: Context) {
 
     private val TAG = "FloatingWindowDebug"
+    private lateinit var libVLC: LibVLC
     private var floatingView: View? = null
-    private var floatingPlayer: ExoPlayer? = null
-    private var playerView: PlayerView? = null
+    private var floatingPlayer: MediaPlayer? = null
+    private var playerView: VLCVideoLayout? = null
 
     // 新增视图引用
     private var playerContainer: FrameLayout? = null
@@ -100,16 +106,9 @@ class FloatingWindowManager(private val context: Context) {
 
                 // 创建播放器（如果有流）
                 if (streamUrl != null) {
-                    floatingPlayer = RtspPlayer.createIndependentPlayer(
-                        context,
-                        url = streamUrl,
-                        startPosition = 0,
-                        playWhenReady = playWhenReady
-                    ).also { player ->
-                        playerView?.player = player
-                        findViewById<ConstraintLayout>(R.id.rootLayout).visibility = View.VISIBLE
-                        playerView?.visibility = View.VISIBLE
-                    }
+                    floatingPlayer = creatPlayer(playerView!!, streamUrl)
+                    findViewById<ConstraintLayout>(R.id.rootLayout).visibility = View.VISIBLE
+                    playerView?.visibility = View.VISIBLE
                 }
 
                 // 回到APP
@@ -230,6 +229,36 @@ class FloatingWindowManager(private val context: Context) {
                 Log.e(TAG, "最终回退方案失败: ${ex.message}")
             }
         }
+    }
+
+    private fun creatPlayer(videoLayout: VLCVideoLayout, url: String): MediaPlayer {
+        // 1. 关键参数配置（超低延迟核心）
+        val args = mutableListOf(
+            "--network-caching=0",      // 禁用缓存（必须）
+            "--clock-jitter=0",         // 降低时间戳抖动
+            "--clock-synchro=0",        // 禁用时钟同步（降低延迟）
+            "--live-caching=0",         // 实时模式无缓存
+            "--tcp-caching=0",          // TCP流无缓存
+            "--rtsp-tcp",               // 强制使用TCP（避免UDP丢包）
+            "--avcodec-fast"            // 启用快速解码
+        )
+
+        // 2. 初始化VLC
+        libVLC = LibVLC(context, args)
+        val mediaPlayer = MediaPlayer(libVLC)
+        // 3. 绑定渲染视图
+        mediaPlayer.attachViews(videoLayout, null, false, false)
+
+        // 4. 设置媒体源（添加超时参数）
+        val media = Media(libVLC, Uri.parse(url)).apply {
+            addOption(":network-caching=0")
+            addOption(":rtsp-timeout=300") // 设置500ms超时
+        }
+
+        // 5. 开始播放
+        mediaPlayer.media = media
+        mediaPlayer.play()
+        return mediaPlayer
     }
 }
 

@@ -14,7 +14,7 @@
         android:translationZ="0dp">
 
         <!-- 2. 全屏播放器放在后面 -->
-        <androidx.media3.ui.PlayerView
+        <org.videolan.libvlc.util.VLCVideoLayout
             android:id="@+id/playerView2"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -34,35 +34,27 @@
         android:layout_height="match_parent"
         android:background="@android:color/transparent"/>
     <!-- 小窗口容器 - 放在全屏播放器之后 -->
-    <FrameLayout
+    <LinearLayout
         android:id="@+id/smallVideoContainer"
-        android:layout_width="wrap_content"
+        android:layout_width="160dp"
         android:layout_height="90dp"
-        android:translationZ="10dp"
+        android:translationZ="99dp"
         android:layout_alignParentBottom="true"
-        android:layout_alignParentStart="true"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
+        android:layout_alignParentStart="true">
 
-        <androidx.media3.ui.AspectRatioFrameLayout
-            android:id="@+id/aspectRatioContainer"
-            android:layout_width="wrap_content"
+        <org.videolan.libvlc.util.VLCVideoLayout
+            android:id="@+id/playerView1"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_gravity="start">
-
-            <androidx.media3.ui.PlayerView
-                android:id="@+id/playerView1"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:surface_type="texture_view"
-                app:use_controller="false"
-                app:resize_mode="fit" />
-        </androidx.media3.ui.AspectRatioFrameLayout>
-    </FrameLayout>
+            app:surface_type="texture_view"
+            app:use_controller="false"
+            app:resize_mode="fit" />
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:translationZ="100dp"
         android:layout_marginBottom="16dp"
         android:layout_marginEnd="16dp"
         android:layout_alignParentBottom="true"

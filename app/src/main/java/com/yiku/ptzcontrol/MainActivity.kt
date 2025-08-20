@@ -27,6 +27,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import org.videolan.libvlc.LibVLC
+import org.videolan.libvlc.Media
+import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.util.VLCVideoLayout
 import com.yiku.ptzcontrol.service.BaseService
 import com.yiku.ptzcontrol.service.BaseService.OnDataReceivedListener
 import com.yiku.ptzcontrol.service.ZT6Service
@@ -52,13 +56,16 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         private const val TRIGGER_INTERVAL = 100L // 触发间隔(毫秒)
     }
 
-    private lateinit var player1: ExoPlayer
-    private lateinit var player2: ExoPlayer
+    private var isPlayersReleased = false
+    private lateinit var player1: MediaPlayer
+    private lateinit var player2: MediaPlayer
     private lateinit var floatingManager: FloatingWindowManager
-    private lateinit var playerView1: PlayerView
-    private lateinit var playerView2: PlayerView
+    private lateinit var playerView1: VLCVideoLayout
+    private lateinit var playerView2: VLCVideoLayout
     private var isConnecting: Boolean = false
     private var isFirstConnect: Boolean = true
+
+    private lateinit var libVLC: LibVLC
 
     private var isSetting: Boolean = false
     // 调试标签
@@ -92,6 +99,16 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var isExchangePlayer = false
+
+    val args = mutableListOf(
+        "--network-caching=0",      // 禁用缓存（必须）
+        "--clock-jitter=0",         // 降低时间戳抖动
+        "--clock-synchro=0",        // 禁用时钟同步（降低延迟）
+        "--live-caching=0",         // 实时模式无缓存
+        "--tcp-caching=0",          // TCP流无缓存
+        "--rtsp-tcp",               // 强制使用TCP（避免UDP丢包）
+        "--avcodec-fast"            // 启用快速解码
+    )
 
     @UnstableApi
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -186,12 +203,6 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
             }
         }
 
-        val smallContainer = findViewById<FrameLayout>(R.id.smallVideoContainer)
-        smallContainer.post {
-            smallContainer.bringToFront()
-            smallContainer.invalidate()
-        }
-
         playerView1.setOnClickListener {
             // 释放播放器
             player1.release()
@@ -278,9 +289,6 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         // 关闭悬浮窗
         floatingManager.closeFloatingWindow()
 
-        // 恢复播放器状态
-        player1.playWhenReady = true
-        player2.playWhenReady = true
     }
 
     @OptIn(UnstableApi::class)
@@ -297,7 +305,6 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         }
         val newStreamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.25:8554/video1")!!
         val newStreamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.25:8554/video2")!!
-        var isUrlChange = false
         if(newStreamUrl1 != streamUrl1 || newStreamUrl2 != streamUrl2) {
             if(isExchangePlayer) {
                 streamUrl1 = newStreamUrl2
@@ -307,74 +314,71 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
                 streamUrl1 = newStreamUrl1
                 streamUrl2 = newStreamUrl2
             }
-            isUrlChange = true
         }
 
-        val resetPlayer1 = RtspPlayer.checkPlayer(player1)
-        val resetPlayer2 = RtspPlayer.checkPlayer(player2)
-        // 如果有一个播放器延迟超过1.5s，或者视频URL有改动，释放并重新创建播放器
-        if (resetPlayer1 || resetPlayer2 || isUrlChange) {
-            // 释放播放器
-            player1.release()
-            player2.release()
-            // 重新初始化播放器
+        if (isPlayersReleased || settingsChanged()) {
+            releasePlayers() // 确保先释放旧资源
             initPlayer()
-        }
-        else {
-            // 回到前台时恢复播放
+        } else {
             player1.play()
             player2.play()
         }
     }
 
+    private fun settingsChanged(): Boolean {
+        val newHost = prefs.getString("ip_address", "") ?: ""
+        val newUrl1 = prefs.getString("stream_url_1", "") ?: ""
+        val newUrl2 = prefs.getString("stream_url_2", "") ?: ""
+        return newHost != host || newUrl1 != streamUrl1 || newUrl2 != streamUrl2
+    }
+
     private fun initPlayer() {
-        // 初始化播放器
-        player1 = RtspPlayer.createPlayer(
-            this,
-            playerView1,
-            streamUrl1,
-            playerId = 1,
-            errorListener = this
-        )
-        player2 = RtspPlayer.createPlayer(
-            this,
-            playerView2,
-            streamUrl2,
-            playerId = 2,
-            errorListener = this
-        )
+        if (!isPlayersReleased) {
+            releasePlayers() // 确保先释放旧实例
+        }
+
+        // 复用LibVLC实例（避免重复创建）
+        if (!::libVLC.isInitialized) {
+            libVLC = LibVLC(this, args)
+        }
+
+        player1 = createPlayer(R.id.playerView1, streamUrl1)
+        player2 = createPlayer(R.id.playerView2, streamUrl2)
+        isPlayersReleased = false
+    }
+
+    private fun createPlayer(viewId: Int, url: String): MediaPlayer {
+        val player = MediaPlayer(libVLC)  // 复用libVLC实例
+        player.attachViews(findViewById(viewId), null, false, false)
+
+        Media(libVLC, Uri.parse(url)).apply {
+            addOption(":rtsp-timeout=500")  // 增加超时时间
+            player.media = this
+        }
+        player.play()
+        return player
     }
 
     override fun onPause() {
         super.onPause()
         Log.d(TAG, "onPause")
-
-        // 保存播放状态
-        player1PlayWhenReady = player1.playWhenReady
-        player2PlayWhenReady = player2.playWhenReady
     }
 
     override fun onStop() {
-        super.onStop()
-        Log.d(TAG, "onStop")
-
-        if (!isChangingConfigurations && !isSetting && !isFinishing) {
-            // 保存播放状态
-            player1PlayWhenReady = player1.playWhenReady
-            player2PlayWhenReady = player2.playWhenReady
-
-            // 暂停播放器
-            player1.pause()
-            player2.pause()
+        if (!isChangingConfigurations) {
+            releasePlayers() // 彻底释放避免残留
         }
+        super.onStop()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy")
         // 释放播放器资源
-        player1.release()
-        player2.release()
+        releasePlayers()
+        if (::libVLC.isInitialized) {
+            libVLC.release() // 最后释放 LibVLC
+        }
         service.ptzAnglePush(false)
         service.disconnect()
         // 确保关闭悬浮窗
@@ -383,6 +387,26 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         triggerHandler.removeCallbacksAndMessages(null)
         mainHandler.removeCallbacksAndMessages(null)
         Log.d(TAG, "onDestroy，floatingView：${floatingManager.isFloatingWindowShowing()}")
+    }
+
+    private fun releasePlayers() {
+        if (isPlayersReleased) return // 避免重复释放
+        // 确保释放顺序：先停止播放，再解除视图绑定，最后释放资源
+        if (::player1.isInitialized) {
+            player1.apply {
+                stop()
+                detachViews()
+                release()
+            }
+        }
+        if (::player2.isInitialized) {
+            player2.apply {
+                stop()
+                detachViews()
+                release()
+            }
+        }
+        isPlayersReleased = true
     }
 
     // 检查悬浮窗权限
@@ -638,23 +662,11 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
             when (playerId) {
                 1 -> {
                     player1.release()
-                    player1 = RtspPlayer.createPlayer(
-                        this,
-                        playerView1,
-                        streamUrl1,
-                        playerId = 1,
-                        errorListener = this
-                    )
+                    player1 = createPlayer(R.id.playerView1, streamUrl1)
                 }
                 2 -> {
                     player2.release()
-                    player2 = RtspPlayer.createPlayer(
-                        this,
-                        playerView2,
-                        streamUrl2,
-                        playerId = 2,
-                        errorListener = this
-                    )
+                    player2 = createPlayer(R.id.playerView2, streamUrl2)
                 }
             }
         } catch (e: Exception) {
