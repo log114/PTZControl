@@ -46,8 +46,8 @@ class SettingsActivity : AppCompatActivity() {
                         val prefsEdit = prefs.edit()
                         prefsEdit.putString("ip_address", newValue).apply()
                         // 修改了ip，就同步修改视频流地址
-                        val streamUrl1 = "rtsp://$newValue:554/stream=1"
-                        val streamUrl2 = "rtsp://$newValue:555/stream=2"
+                        val streamUrl1 = "rtsp://$newValue:8554/video1"
+                        val streamUrl2 = "rtsp://$newValue:8554/video2"
                         streamUrlEditText1.setText(streamUrl1)
                         streamUrlEditText2.setText(streamUrl2)
                     }
@@ -75,9 +75,9 @@ class SettingsActivity : AppCompatActivity() {
         // 从SharedPreferences加载保存的设置
         val prefs = getSharedPreferences("camera_settings", MODE_PRIVATE)
 
-        streamUrlEditText1.setText(prefs.getString("stream_url_1", "rtsp://192.168.144.108:554/stream=1"))
-        streamUrlEditText2.setText(prefs.getString("stream_url_2", "rtsp://192.168.144.108:555/stream=2"))
-        ipAddressText.text = prefs.getString("ip_address", "192.168.144.108")
+        streamUrlEditText1.setText(prefs.getString("stream_url_1", "rtsp://192.168.144.25:8554/video1"))
+        streamUrlEditText2.setText(prefs.getString("stream_url_2", "rtsp://192.168.144.25:8554/video2"))
+        ipAddressText.text = prefs.getString("ip_address", "192.168.144.25")
     }
 
     private fun saveSettingsAndFinish() {
@@ -155,7 +155,7 @@ class SettingsActivity : AppCompatActivity() {
 
                 // 4. 验证IP有效性
                 if (!isValidIPv4(newValue)) {
-                    input.error = "无效的IP地址格式！示例：192.168.144.108"
+                    input.error = "无效的IP地址格式！示例：192.168.144.25"
                     return@setOnClickListener
                 }
 

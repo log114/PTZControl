@@ -23,4 +23,14 @@ object CommonMethods {
             bigInt.toInt()
         }
     }
+
+    fun bytesToHex(bytes: ByteArray): String {
+        val hexChars = CharArray(bytes.size * 2)
+        var hex = ""
+        for (b in bytes) {
+            val st = String.format("%02X", b)
+            hex += "$st "
+        }
+        return hex
+    }
 }

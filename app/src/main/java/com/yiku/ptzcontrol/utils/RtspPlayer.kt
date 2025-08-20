@@ -34,6 +34,7 @@ object RtspPlayer {
         playerId: Int, // 标识播放器 (1-小窗, 2-全屏)
         errorListener: PlayerErrorListener? = null // 错误回调
     ): ExoPlayer {
+        Log.i(TAG, "视频地址：${url}")
         // 1. 创建ExoPlayer实例，并配置为低延迟模式
         val renderersFactory = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true) // 开启解码器后备支持

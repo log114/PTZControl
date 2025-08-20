@@ -29,9 +29,14 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.yiku.ptzcontrol.service.BaseService
 import com.yiku.ptzcontrol.service.BaseService.OnDataReceivedListener
-import com.yiku.ptzcontrol.service.C12Service
+import com.yiku.ptzcontrol.service.ZT6Service
 import com.yiku.ptzcontrol.utils.CommonMethods
+import com.yiku.ptzcontrol.utils.MsgCallback
 import com.yiku.ptzcontrol.utils.RtspPlayer
+import java.util.Date
+import java.util.Timer
+import java.util.TimerTask
+import kotlin.concurrent.thread
 import kotlin.math.abs
 
 
@@ -52,6 +57,8 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
     private lateinit var floatingManager: FloatingWindowManager
     private lateinit var playerView1: PlayerView
     private lateinit var playerView2: PlayerView
+    private var isConnecting: Boolean = false
+    private var isFirstConnect: Boolean = true
 
     private var isSetting: Boolean = false
     // 调试标签
@@ -103,12 +110,27 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
 
         prefs = getSharedPreferences("camera_settings", MODE_PRIVATE)
 
-        streamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.108:554/stream=1")!!
-        streamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.108:555/stream=2")!!
-        host = prefs.getString("ip_address", "192.168.144.108")!!
+        streamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.25:8554/video1")!!
+        streamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.25:8554/video2")!!
+        host = prefs.getString("ip_address", "192.168.144.25")!!
 
-        service = C12Service()
-        service.connect(host)
+        service = ZT6Service()
+        service.registMsgCallback(object : MsgCallback {
+            override fun getId(): String {
+                return "ThrowerWeightCallback"
+            }
+            override fun onMsg(msg: ByteArray) {
+                if (msg[0] != 0x55.toByte() || msg[1] != 0x66.toByte()) {
+                    return
+                }
+                // 伪彩
+                if (msg[7] == 0x1A.toByte()) {
+                    onColorDataReceived(msg)
+                }
+            }
+
+        })
+        setConnectState()
         playerView1 = findViewById(R.id.playerView1)
         playerView2 = findViewById(R.id.playerView2)
 
@@ -144,32 +166,6 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
 
         // 设置伪彩菜单
         setupFilterMenu()
-        // 获取并设置伪彩默认选中项
-        service.getPseudoColor(object: OnDataReceivedListener {
-            override fun onDataReceived(data: String) {
-                runOnUiThread {
-                    val newPosition = service.colorList.indexOf(data)
-                    if (newPosition != -1) {
-                        currentFilterPosition = newPosition
-                    }
-
-                    // 刷新菜单确保选中状态正确
-                    (filterListView.adapter as? BaseAdapter)?.notifyDataSetChanged()
-
-                    Log.d(TAG, "当前伪彩模式设置为: ${service.colorList[currentFilterPosition]}")
-                }
-                // 收到伪彩信息后，才发送请求，请求推送云台角度数据
-                service.ptzAnglePush(true)
-                setDataReceivedListener()
-            }
-
-            override fun onError(error: String) {
-                runOnUiThread {
-                    Toast.makeText(this@MainActivity, "获取伪彩失败: $error", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-        })
 
         // 添加全局点击监听（点击菜单外区域关闭菜单）
         findViewById<View>(R.id.dragOverlay).setOnClickListener {
@@ -208,6 +204,26 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
             initPlayer()
             isExchangePlayer = true
         }
+    }
+
+    // 设置伪彩默认选中项
+    private fun onColorDataReceived(data: ByteArray) {
+        val colorCode = data[8].toInt()
+        val colorStr = service.convertPseudoColorInt2Str(colorCode)
+        runOnUiThread {
+            val newPosition = service.colorList.indexOf(colorStr)
+            if (newPosition != -1) {
+                currentFilterPosition = newPosition
+            }
+
+            // 刷新菜单确保选中状态正确
+            (filterListView.adapter as? BaseAdapter)?.notifyDataSetChanged()
+
+            Log.d(TAG, "当前伪彩模式设置为: ${service.colorList[currentFilterPosition]}")
+        }
+        // 收到伪彩信息后，才发送请求，请求推送云台角度数据
+        service.ptzAnglePush(true)
+        setDataReceivedListener()
     }
 
     private fun setDataReceivedListener() {
@@ -272,15 +288,15 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         super.onResume()
         Log.d(TAG, "onResume")
 
-        val newHost = prefs.getString("ip_address", "192.168.144.108")!!
+        val newHost = prefs.getString("ip_address", "192.168.144.25")!!
         // 如果ip变了，断开重连
         if(newHost != host) {
             service.disconnect()
             host = newHost
             service.connect(host)
         }
-        val newStreamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.108:554/stream=1")!!
-        val newStreamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.108:555/stream=2")!!
+        val newStreamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.25:8554/video1")!!
+        val newStreamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.25:8554/video2")!!
         var isUrlChange = false
         if(newStreamUrl1 != streamUrl1 || newStreamUrl2 != streamUrl2) {
             if(isExchangePlayer) {
@@ -521,6 +537,7 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         triggerRunnable?.let { triggerHandler.removeCallbacks(it) }
         triggerRunnable = null
         currentDirection = DIRECTION_NONE
+        service.stopMove()
     }
 
     // 初始化伪彩设置菜单
@@ -582,34 +599,34 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
     }
 
     override fun onPlayerError(playerId: Int, exception: Exception) {
-        runOnUiThread {
-            val message = when (playerId) {
-                1 -> "可见光视频播放失败"
-                2 -> "热成像视频播放失败"
-                else -> "视频播放异常"
-            }
-
-//            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-            Log.e(TAG, "Player $playerId error", exception)
-
-            // 自动重试逻辑
-            val retryCount = errorRetryCounters.getOrDefault(playerId, 0)
-            if (retryCount < MAX_RETRY_COUNT) {
-                Toast.makeText(this, "$message, 将在3秒后尝试重连...", Toast.LENGTH_SHORT).show()
-                errorRetryCounters[playerId] = retryCount + 1
-
-                mainHandler.postDelayed({
-                    // 重连前检查Activity状态
-                    if (!isFinishing && !isDestroyed) {
-                        tryReloadPlayer(playerId)
-                    }
-                }, RETRY_DELAY)
-            } else {
-                Toast.makeText(this, "重连失败，请检查网络或设置", Toast.LENGTH_LONG).show()
-                // 重置重试计数器
-                errorRetryCounters[playerId] = 0
-            }
-        }
+//        runOnUiThread {
+//            val message = when (playerId) {
+//                1 -> "可见光视频播放失败"
+//                2 -> "热成像视频播放失败"
+//                else -> "视频播放异常"
+//            }
+//
+////            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+//            Log.e(TAG, "Player $playerId error", exception)
+//
+//            // 自动重试逻辑
+//            val retryCount = errorRetryCounters.getOrDefault(playerId, 0)
+//            if (retryCount < MAX_RETRY_COUNT) {
+//                Toast.makeText(this, "$message, 将在3秒后尝试重连...", Toast.LENGTH_SHORT).show()
+//                errorRetryCounters[playerId] = retryCount + 1
+//
+//                mainHandler.postDelayed({
+//                    // 重连前检查Activity状态
+//                    if (!isFinishing && !isDestroyed) {
+//                        tryReloadPlayer(playerId)
+//                    }
+//                }, RETRY_DELAY)
+//            } else {
+//                Toast.makeText(this, "重连失败，请检查网络或设置", Toast.LENGTH_LONG).show()
+//                // 重置重试计数器
+//                errorRetryCounters[playerId] = 0
+//            }
+//        }
     }
     // 重试加载播放器
     private fun tryReloadPlayer(playerId: Int) {
@@ -643,5 +660,34 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         } catch (e: Exception) {
             Log.e(TAG, "重载播放器失败", e)
         }
+    }
+
+    // 定时器，判断连接状态
+    private fun setConnectState() {
+        val timer = Timer();
+        val handler = Handler(Looper.getMainLooper())
+        val task = object : TimerTask() {
+            override fun run() {
+                if(service.getIsConnected()){
+                    service.heartbeat()
+                }
+                else if(!isConnecting){
+                    isConnecting = true
+                    // 尝试重连
+                    thread {
+                        if(!isFirstConnect) {
+                            Thread.sleep(10000)
+                        }
+                        isFirstConnect = false
+                        while (!service.connect(host)) {
+                            Thread.sleep(1000)
+                        }
+                        isConnecting = false
+                    }
+                }
+            }
+        }
+        // 定时器，100毫秒后开始执行，每1秒执行一次
+        timer.scheduleAtFixedRate(task, 100, 1000);
     }
 }
