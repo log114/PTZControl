@@ -1,5 +1,6 @@
 package com.yiku.ptzcontrol.utils
 
+import android.content.res.Resources
 import java.math.BigInteger
 
 object CommonMethods {

@@ -6,7 +6,6 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.PointF
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -20,27 +19,21 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import androidx.annotation.OptIn
+import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
+import com.yiku.ptzcontrol.utils.PlayerCallback
 import com.yiku.ptzcontrol.utils.RtspPlayer
-import org.videolan.libvlc.LibVLC
-import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.util.VLCVideoLayout
-import kotlin.math.abs
 import kotlin.math.sqrt
 
-@UnstableApi
 class FloatingWindowManager(private val context: Context) {
 
-    private val TAG = "FloatingWindowDebug"
-    private lateinit var libVLC: LibVLC
+    private val TAG = "FloatingWindowManager"
     private var floatingView: View? = null
     private var floatingPlayer: MediaPlayer? = null
     private var playerView: VLCVideoLayout? = null
+    private var rtspPlayer: RtspPlayer = RtspPlayer(context)
 
     // 新增视图引用
     private var playerContainer: FrameLayout? = null
@@ -61,12 +54,7 @@ class FloatingWindowManager(private val context: Context) {
         }
     }
 
-    // 显示悬浮窗（添加状态恢复参数）
-    @OptIn(UnstableApi::class)
-    fun showFloatingWindow(
-        streamUrl: String?,
-        playWhenReady: Boolean
-    ) {
+    fun showFloatingWindow(streamUrl: String, isExchangePlayer: Boolean) {
         Log.d(TAG, "showFloatingWindow called")
 
         if (!checkOverlayPermission()) {
@@ -105,8 +93,19 @@ class FloatingWindowManager(private val context: Context) {
                 playerView = findViewById(R.id.floatingPlayer)
 
                 // 创建播放器（如果有流）
-                if (streamUrl != null) {
-                    floatingPlayer = creatPlayer(playerView!!, streamUrl)
+                if (streamUrl != "") {
+                    rtspPlayer.registPlayerCallback(object : PlayerCallback {
+                        override fun onPlaying(index: Int, mediaPlayer: MediaPlayer) {
+                            Log.i(TAG, "悬浮窗视频播放成功")
+                            floatingPlayer = mediaPlayer
+                        }
+
+                        override fun onError(index: Int) {
+                            Log.e(TAG, "悬浮窗视频播放失败")
+                            Toast.makeText(context, "悬浮窗视频播放失败", Toast.LENGTH_SHORT).show()
+                        }
+                    })
+                    rtspPlayer.createPlayer(3, playerView!!, streamUrl)
                     findViewById<ConstraintLayout>(R.id.rootLayout).visibility = View.VISIBLE
                     playerView?.visibility = View.VISIBLE
                 }
@@ -124,8 +123,8 @@ class FloatingWindowManager(private val context: Context) {
 
             // 设置窗口参数 - 改为固定宽度填充屏幕
             val params = WindowManager.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, // 自适应宽度
-                WindowManager.LayoutParams.WRAP_CONTENT, // 高度自适应
+                640, // 自适应宽度
+                if(isExchangePlayer) 360 else 512, // 高度自适应
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 } else {
@@ -173,6 +172,7 @@ class FloatingWindowManager(private val context: Context) {
 
         floatingPlayer?.release()
         floatingPlayer = null
+        rtspPlayer.release()
     }
 
     // 打开应用主界面
@@ -229,36 +229,6 @@ class FloatingWindowManager(private val context: Context) {
                 Log.e(TAG, "最终回退方案失败: ${ex.message}")
             }
         }
-    }
-
-    private fun creatPlayer(videoLayout: VLCVideoLayout, url: String): MediaPlayer {
-        // 1. 关键参数配置（超低延迟核心）
-        val args = mutableListOf(
-            "--network-caching=0",      // 禁用缓存（必须）
-            "--clock-jitter=0",         // 降低时间戳抖动
-            "--clock-synchro=0",        // 禁用时钟同步（降低延迟）
-            "--live-caching=0",         // 实时模式无缓存
-            "--tcp-caching=0",          // TCP流无缓存
-            "--rtsp-tcp",               // 强制使用TCP（避免UDP丢包）
-            "--avcodec-fast"            // 启用快速解码
-        )
-
-        // 2. 初始化VLC
-        libVLC = LibVLC(context, args)
-        val mediaPlayer = MediaPlayer(libVLC)
-        // 3. 绑定渲染视图
-        mediaPlayer.attachViews(videoLayout, null, false, false)
-
-        // 4. 设置媒体源（添加超时参数）
-        val media = Media(libVLC, Uri.parse(url)).apply {
-            addOption(":network-caching=0")
-            addOption(":rtsp-timeout=300") // 设置500ms超时
-        }
-
-        // 5. 开始播放
-        mediaPlayer.media = media
-        mediaPlayer.play()
-        return mediaPlayer
     }
 }
 

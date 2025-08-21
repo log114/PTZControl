@@ -1,4 +1,5 @@
 package com.yiku.ptzcontrol
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
@@ -9,6 +10,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.MotionEvent
+import android.view.SurfaceView
 import android.view.View
 import android.view.View.OnTouchListener
 import android.view.ViewGroup
@@ -16,19 +18,12 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.ArrayAdapter
 import android.widget.BaseAdapter
-import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
-import org.videolan.libvlc.LibVLC
-import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.util.VLCVideoLayout
 import com.yiku.ptzcontrol.service.BaseService
@@ -37,15 +32,13 @@ import com.yiku.ptzcontrol.service.ZT6Service
 import com.yiku.ptzcontrol.utils.CommonMethods
 import com.yiku.ptzcontrol.utils.MsgCallback
 import com.yiku.ptzcontrol.utils.RtspPlayer
-import java.util.Date
 import java.util.Timer
 import java.util.TimerTask
 import kotlin.concurrent.thread
 import kotlin.math.abs
+import com.yiku.ptzcontrol.utils.PlayerCallback
 
-
-@UnstableApi
-class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
+class MainActivity : AppCompatActivity() {
     companion object {
         const val OVERLAY_PERMISSION_CODE = 1000
         const val DIRECTION_NONE = 0
@@ -56,25 +49,22 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         private const val TRIGGER_INTERVAL = 100L // 触发间隔(毫秒)
     }
 
-    private var isPlayersReleased = false
-    private lateinit var player1: MediaPlayer
-    private lateinit var player2: MediaPlayer
+    private var isFirst = true
+    private var player1: MediaPlayer? = null
+    private var player2: MediaPlayer? = null
     private lateinit var floatingManager: FloatingWindowManager
     private lateinit var playerView1: VLCVideoLayout
     private lateinit var playerView2: VLCVideoLayout
     private var isConnecting: Boolean = false
     private var isFirstConnect: Boolean = true
 
-    private lateinit var libVLC: LibVLC
+    private var rtspPlayer: RtspPlayer? = null
 
     private var isSetting: Boolean = false
     // 调试标签
     private val TAG = "MainActivityDebug"
     private var host = ""
     private lateinit var service: BaseService
-    // 记录播放器状态
-    private var player1PlayWhenReady = true
-    private var player2PlayWhenReady = true
     private var dragOverlay: View? = null
     private var startX: Float = 0f
     private var startY: Float = 0f
@@ -92,6 +82,7 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
     private lateinit var filterListView: ListView
     private var pitchState = 0 // 俯仰状态，0：未到限位，1：已达上限位，2：已达下限位
     private var yawState = 0  // 偏航状态，0：未到限位，1：已达左限位，2：已达右限位
+    private var _context: Context = this
 
     private val errorRetryCounters = mutableMapOf<Int, Int>() // playerId -> retry count
     private val MAX_RETRY_COUNT = 20 // 最大重试次数
@@ -100,17 +91,6 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
 
     private var isExchangePlayer = false
 
-    val args = mutableListOf(
-        "--network-caching=0",      // 禁用缓存（必须）
-        "--clock-jitter=0",         // 降低时间戳抖动
-        "--clock-synchro=0",        // 禁用时钟同步（降低延迟）
-        "--live-caching=0",         // 实时模式无缓存
-        "--tcp-caching=0",          // TCP流无缓存
-        "--rtsp-tcp",               // 强制使用TCP（避免UDP丢包）
-        "--avcodec-fast"            // 启用快速解码
-    )
-
-    @UnstableApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestWindowFeature(Window.FEATURE_NO_TITLE) // 隐藏标题栏（如果存在）
@@ -194,26 +174,33 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
             this.moveTaskToBack(true)
             // 尝试显示悬浮窗
             if (floatingManager.checkOverlayPermission()) {
-                floatingManager.showFloatingWindow(
-                    streamUrl = streamUrl2,
-                    playWhenReady = player2PlayWhenReady
-                )
+                floatingManager.showFloatingWindow(streamUrl2, isExchangePlayer)
+                // 释放掉播放器
+                releasePlayers()
             } else {
                 Log.d(TAG, "Floating window permission not granted")
             }
         }
 
         playerView1.setOnClickListener {
-            // 释放播放器
-            player1.release()
-            player2.release()
-            // 交换连接
+            // 交换前暂停播放
+            player1?.pause()
+            player2?.pause()
+
+            // 交换数据源（非重新创建MediaPlayer）
+            val tempMedia = player1?.media
+            player1?.media = player2?.media
+            player2?.media = tempMedia
+
+            // 恢复播放
+            player1?.play()
+            player2?.play()
+
+            // 交换连接，使得退回该页面时，加载的内容与离开前一直
             val tempUrl = streamUrl1
             streamUrl1 = streamUrl2
             streamUrl2 = tempUrl
-            // 重新初始化播放器
-            initPlayer()
-            isExchangePlayer = true
+            isExchangePlayer = !isExchangePlayer
         }
     }
 
@@ -233,8 +220,8 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
             Log.d(TAG, "当前伪彩模式设置为: ${service.colorList[currentFilterPosition]}")
         }
         // 收到伪彩信息后，才发送请求，请求推送云台角度数据
-        service.ptzAnglePush(true)
-        setDataReceivedListener()
+//        service.ptzAnglePush(true)
+//        setDataReceivedListener()
     }
 
     private fun setDataReceivedListener() {
@@ -291,7 +278,6 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
 
     }
 
-    @OptIn(UnstableApi::class)
     override fun onResume() {
         super.onResume()
         Log.d(TAG, "onResume")
@@ -316,47 +302,71 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
             }
         }
 
-        if (isPlayersReleased || settingsChanged()) {
+        if(isFirst) {
+            isFirst = false
+            return
+        }
+
+        if(rtspPlayer != null) {
             releasePlayers() // 确保先释放旧资源
             initPlayer()
-        } else {
-            player1.play()
-            player2.play()
         }
-    }
-
-    private fun settingsChanged(): Boolean {
-        val newHost = prefs.getString("ip_address", "") ?: ""
-        val newUrl1 = prefs.getString("stream_url_1", "") ?: ""
-        val newUrl2 = prefs.getString("stream_url_2", "") ?: ""
-        return newHost != host || newUrl1 != streamUrl1 || newUrl2 != streamUrl2
     }
 
     private fun initPlayer() {
-        if (!isPlayersReleased) {
-            releasePlayers() // 确保先释放旧实例
+        if(rtspPlayer == null) {
+            rtspPlayer = RtspPlayer(this)
+            rtspPlayer?.registPlayerCallback(object : PlayerCallback {
+                override fun onPlaying(index: Int, mediaPlayer: MediaPlayer) {
+                    Log.i(TAG, "视频${index}播放成功")
+                    when(index) {
+                        1 -> {
+                            player1 = mediaPlayer
+                            val handler = Handler(Looper.getMainLooper())
+                            handler.post {
+                                val linearLayout =
+                                    findViewById<LinearLayout>(R.id.smallVideoContainer)
+                                val params = linearLayout.layoutParams as ViewGroup.LayoutParams
+
+                                if (isExchangePlayer) {
+                                    params.height = 308
+                                } else {
+                                    params.height = 216
+                                }
+                                linearLayout.layoutParams = params
+                            }
+                        }
+                        2 -> {
+                            player2 = mediaPlayer
+                        }
+                    }
+                }
+
+                override fun onError(index: Int) {
+                    var errorMsg = ""
+                    when(index) {
+                        1 -> {
+                            errorMsg = if(isExchangePlayer) {
+                                "热成像视频播放失败"
+                            } else {
+                                "可见光视频播放失败"
+                            }
+                        }
+                        2 -> {
+                            errorMsg = if(isExchangePlayer) {
+                                "可见光视频播放失败"
+                            } else {
+                                "热成像视频播放失败"
+                            }
+                        }
+                    }
+                    Log.e(TAG, errorMsg)
+                    Toast.makeText(_context, errorMsg, Toast.LENGTH_SHORT).show()
+                }
+            })
         }
-
-        // 复用LibVLC实例（避免重复创建）
-        if (!::libVLC.isInitialized) {
-            libVLC = LibVLC(this, args)
-        }
-
-        player1 = createPlayer(R.id.playerView1, streamUrl1)
-        player2 = createPlayer(R.id.playerView2, streamUrl2)
-        isPlayersReleased = false
-    }
-
-    private fun createPlayer(viewId: Int, url: String): MediaPlayer {
-        val player = MediaPlayer(libVLC)  // 复用libVLC实例
-        player.attachViews(findViewById(viewId), null, false, false)
-
-        Media(libVLC, Uri.parse(url)).apply {
-            addOption(":rtsp-timeout=500")  // 增加超时时间
-            player.media = this
-        }
-        player.play()
-        return player
+        rtspPlayer?.createPlayer(1, playerView1, streamUrl1)
+        rtspPlayer?.createPlayer(2, playerView2, streamUrl2)
     }
 
     override fun onPause() {
@@ -365,9 +375,6 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
     }
 
     override fun onStop() {
-        if (!isChangingConfigurations) {
-            releasePlayers() // 彻底释放避免残留
-        }
         super.onStop()
     }
 
@@ -376,10 +383,11 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
         Log.d(TAG, "onDestroy")
         // 释放播放器资源
         releasePlayers()
-        if (::libVLC.isInitialized) {
-            libVLC.release() // 最后释放 LibVLC
+        if(rtspPlayer != null) {
+            rtspPlayer!!.release()
+            rtspPlayer = null
         }
-        service.ptzAnglePush(false)
+//        service.ptzAnglePush(false)
         service.disconnect()
         // 确保关闭悬浮窗
         floatingManager.closeFloatingWindow()
@@ -390,23 +398,24 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
     }
 
     private fun releasePlayers() {
-        if (isPlayersReleased) return // 避免重复释放
         // 确保释放顺序：先停止播放，再解除视图绑定，最后释放资源
-        if (::player1.isInitialized) {
+        if (player1 != null) {
             player1.apply {
-                stop()
+                this!!.stop()
                 detachViews()
                 release()
             }
+            player1 = null
         }
-        if (::player2.isInitialized) {
+        if (player2 != null) {
             player2.apply {
-                stop()
+                this!!.stop()
                 detachViews()
                 release()
             }
+            player2 = null
         }
-        isPlayersReleased = true
+        Log.i(TAG, "播放器释放完成")
     }
 
     // 检查悬浮窗权限
@@ -621,57 +630,26 @@ class MainActivity : AppCompatActivity(), RtspPlayer.PlayerErrorListener {
     private fun applyFilterEffect(colorName: String) {
         service.setPseudoColor(colorName)
     }
-
-    override fun onPlayerError(playerId: Int, exception: Exception) {
-//        runOnUiThread {
-//            val message = when (playerId) {
-//                1 -> "可见光视频播放失败"
-//                2 -> "热成像视频播放失败"
-//                else -> "视频播放异常"
-//            }
-//
-////            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-//            Log.e(TAG, "Player $playerId error", exception)
-//
-//            // 自动重试逻辑
-//            val retryCount = errorRetryCounters.getOrDefault(playerId, 0)
-//            if (retryCount < MAX_RETRY_COUNT) {
-//                Toast.makeText(this, "$message, 将在3秒后尝试重连...", Toast.LENGTH_SHORT).show()
-//                errorRetryCounters[playerId] = retryCount + 1
-//
-//                mainHandler.postDelayed({
-//                    // 重连前检查Activity状态
-//                    if (!isFinishing && !isDestroyed) {
-//                        tryReloadPlayer(playerId)
-//                    }
-//                }, RETRY_DELAY)
-//            } else {
-//                Toast.makeText(this, "重连失败，请检查网络或设置", Toast.LENGTH_LONG).show()
-//                // 重置重试计数器
-//                errorRetryCounters[playerId] = 0
-//            }
-//        }
-    }
     // 重试加载播放器
     private fun tryReloadPlayer(playerId: Int) {
         if (isFinishing || isDestroyed) {
             Log.d(TAG, "Activity已销毁，取消重连播放器$playerId")
             return
         }
-        try {
-            when (playerId) {
-                1 -> {
-                    player1.release()
-                    player1 = createPlayer(R.id.playerView1, streamUrl1)
-                }
-                2 -> {
-                    player2.release()
-                    player2 = createPlayer(R.id.playerView2, streamUrl2)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "重载播放器失败", e)
-        }
+//        try {
+//            when (playerId) {
+//                1 -> {
+//                    player1.release()
+//                    player1 = createPlayer(R.id.playerView1, streamUrl1)
+//                }
+//                2 -> {
+//                    player2.release()
+//                    player2 = createPlayer(R.id.playerView2, streamUrl2)
+//                }
+//            }
+//        } catch (e: Exception) {
+//            Log.e(TAG, "重载播放器失败", e)
+//        }
     }
 
     // 定时器，判断连接状态

@@ -45,7 +45,7 @@ class ZT6Service: BaseService() {
                         if (recv.isEmpty()) {
                             continue
                         }
-                    Log.i(TAG, "recv:${bytesToHex(recv)}")
+                        Log.i(TAG, "recv:${bytesToHex(recv)}")
                         for (msgCallback in msgCallbacks) {
                             msgCallback.onMsg(recv)
                         }
