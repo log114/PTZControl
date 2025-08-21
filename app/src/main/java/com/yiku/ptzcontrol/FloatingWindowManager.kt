@@ -149,7 +149,8 @@ class FloatingWindowManager(private val context: Context) {
     }
 
     fun isFloatingWindowShowing(): Boolean {
-        return floatingView != null
+        return floatingView != null &&
+                floatingPlayer != null
     }
 
     // 关闭悬浮窗
@@ -157,22 +158,31 @@ class FloatingWindowManager(private val context: Context) {
         Log.d(TAG, "准备关闭悬浮窗")
         floatingView?.let {
             try {
-                windowManager.removeView(it)
-                Log.d(TAG, "Floating window removed")
+                // 先停止播放
+                floatingPlayer?.stop()
+                rtspPlayer.release()
+
+                // 同步释放播放器资源
+                floatingPlayer?.detachViews()
+                floatingPlayer?.release()
+                floatingPlayer = null
+
+                // 再移除视图
+                floatingView?.let {
+                    windowManager.removeView(it)
+                    it.setBackgroundResource(0) // 清除资源引用
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Error removing floating window: ${e.message}")
+                Log.e(TAG, "关闭悬浮窗错误: ${e.message}")
+            } finally {
+                // 确保所有引用置空
+                playerContainer = null
+                videoContainer = null
+                playerView = null
+                floatingView = null
+                Log.d(TAG, "悬浮窗资源完全释放")
             }
-
-            // 清除所有视图引用
-            playerContainer = null
-            videoContainer = null
-            playerView = null
-            floatingView = null
         }
-
-        floatingPlayer?.release()
-        floatingPlayer = null
-        rtspPlayer.release()
     }
 
     // 打开应用主界面

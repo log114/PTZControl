@@ -3,14 +3,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
+import android.graphics.PixelFormat
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.MotionEvent
-import android.view.SurfaceView
 import android.view.View
 import android.view.View.OnTouchListener
 import android.view.ViewGroup
@@ -23,6 +24,7 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.util.VLCVideoLayout
@@ -84,13 +86,11 @@ class MainActivity : AppCompatActivity() {
     private var yawState = 0  // 偏航状态，0：未到限位，1：已达左限位，2：已达右限位
     private var _context: Context = this
 
-    private val errorRetryCounters = mutableMapOf<Int, Int>() // playerId -> retry count
-    private val MAX_RETRY_COUNT = 20 // 最大重试次数
-    private val RETRY_DELAY = 3000L // 重试延迟时间 (毫秒)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var isExchangePlayer = false
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestWindowFeature(Window.FEATURE_NO_TITLE) // 隐藏标题栏（如果存在）
@@ -100,9 +100,12 @@ class MainActivity : AppCompatActivity() {
         )
         setContentView(R.layout.main)
 
-        Log.d(TAG, "onCreate")
-        if(::floatingManager.isInitialized) {
-            Log.d(TAG, "onCreate，floatingView：${floatingManager.isFloatingWindowShowing()}")
+        // 按系统版本决定添加顺序
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Android 8.0+：后添加的覆盖先添加的
+            Log.d(TAG, "当前Android版本大于8.0")
+        } else {
+            Log.d(TAG, "当前Android版本小于8.0")
         }
 
         prefs = getSharedPreferences("camera_settings", MODE_PRIVATE)
@@ -221,49 +224,6 @@ class MainActivity : AppCompatActivity() {
         }
         // 收到伪彩信息后，才发送请求，请求推送云台角度数据
 //        service.ptzAnglePush(true)
-//        setDataReceivedListener()
-    }
-
-    private fun setDataReceivedListener() {
-        val listener = object : OnDataReceivedListener {
-            override fun onDataReceived(data: String) {
-                // 云台数据
-                if(data.contains("#tpUGCrGAC")) {
-                    if (data.length < 24) {
-                        return
-                    }
-                    val yawStateStr = data.substring(10, 14)
-                    val pitchStateStr = data.substring(14, 18)
-                    val yawStateNum = CommonMethods.hexToSignedInt(yawStateStr)
-                    val pitchStateNum = CommonMethods.hexToSignedInt(pitchStateStr)
-
-                    Log.d(TAG, "yawStateStr=${yawStateNum}")
-                    Log.d(TAG, "pitchStateStr=${pitchStateNum}")
-
-                    yawState = if(yawStateNum >= 9000) {
-                        1
-                    } else if(yawStateNum <= -9000) {
-                        2
-                    } else {
-                        0
-                    }
-
-                    pitchState = if(pitchStateNum >= 3000) {
-                        1
-                    } else if(pitchStateNum <= -9000) {
-                        2
-                    } else {
-                        0
-                    }
-                }
-            }
-            override fun onError(error: String) {
-                Log.e(TAG, error)
-            }
-        }
-
-        // 注册临时监听器并发送命令
-        service.setGlobalListener(listener)
     }
 
     override fun onStart() {
@@ -275,12 +235,7 @@ class MainActivity : AppCompatActivity() {
 
         // 关闭悬浮窗
         floatingManager.closeFloatingWindow()
-
-    }
-
-    override fun onResume() {
-        super.onResume()
-        Log.d(TAG, "onResume")
+        Log.d(TAG, "悬浮窗关闭完成")
 
         val newHost = prefs.getString("ip_address", "192.168.144.25")!!
         // 如果ip变了，断开重连
@@ -311,6 +266,12 @@ class MainActivity : AppCompatActivity() {
             releasePlayers() // 确保先释放旧资源
             initPlayer()
         }
+
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Log.d(TAG, "onResume")
     }
 
     private fun initPlayer() {
@@ -328,6 +289,7 @@ class MainActivity : AppCompatActivity() {
                                     findViewById<LinearLayout>(R.id.smallVideoContainer)
                                 val params = linearLayout.layoutParams as ViewGroup.LayoutParams
 
+                                params.width = 384
                                 if (isExchangePlayer) {
                                     params.height = 308
                                 } else {
@@ -436,7 +398,6 @@ class MainActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-
         if (requestCode == OVERLAY_PERMISSION_CODE) {
             if (Settings.canDrawOverlays(this)) {
                 Log.d(TAG, "Overlay permission granted by user")
@@ -594,7 +555,6 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     view.background = null
                 }
-
                 return view
             }
         }
@@ -630,32 +590,10 @@ class MainActivity : AppCompatActivity() {
     private fun applyFilterEffect(colorName: String) {
         service.setPseudoColor(colorName)
     }
-    // 重试加载播放器
-    private fun tryReloadPlayer(playerId: Int) {
-        if (isFinishing || isDestroyed) {
-            Log.d(TAG, "Activity已销毁，取消重连播放器$playerId")
-            return
-        }
-//        try {
-//            when (playerId) {
-//                1 -> {
-//                    player1.release()
-//                    player1 = createPlayer(R.id.playerView1, streamUrl1)
-//                }
-//                2 -> {
-//                    player2.release()
-//                    player2 = createPlayer(R.id.playerView2, streamUrl2)
-//                }
-//            }
-//        } catch (e: Exception) {
-//            Log.e(TAG, "重载播放器失败", e)
-//        }
-    }
 
     // 定时器，判断连接状态
     private fun setConnectState() {
         val timer = Timer();
-        val handler = Handler(Looper.getMainLooper())
         val task = object : TimerTask() {
             override fun run() {
                 if(service.getIsConnected()){
