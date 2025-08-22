@@ -28,3 +28,6 @@
 
 v1.1.0
 1. 改用org.videolan.android:libvlc-all 3.6.2播放rtsp视频（未确认在大疆遥控器上，小窗口是否会被打窗口遮挡）
+
+v1.1.1
+1. 兼容Android8.0 以下版本的设备

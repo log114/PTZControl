@@ -22,10 +22,13 @@ import android.widget.BaseAdapter
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.RelativeLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.ViewCompat
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.util.VLCVideoLayout
 import com.yiku.ptzcontrol.service.BaseService
@@ -55,8 +58,8 @@ class MainActivity : AppCompatActivity() {
     private var player1: MediaPlayer? = null
     private var player2: MediaPlayer? = null
     private lateinit var floatingManager: FloatingWindowManager
-    private lateinit var playerView1: VLCVideoLayout
-    private lateinit var playerView2: VLCVideoLayout
+    private lateinit var playerView1: VLCVideoLayout    // 小窗口
+    private lateinit var playerView2: VLCVideoLayout    // 全屏窗口
     private var isConnecting: Boolean = false
     private var isFirstConnect: Boolean = true
 
@@ -104,9 +107,26 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Android 8.0+：后添加的覆盖先添加的
             Log.d(TAG, "当前Android版本大于8.0")
+            playerView1 = findViewById(R.id.playerView1)
+            playerView2 = findViewById(R.id.playerView2)
         } else {
             Log.d(TAG, "当前Android版本小于8.0")
+            playerView1 = findViewById(R.id.playerView2)
+            playerView2 = findViewById(R.id.playerView1)
         }
+        playerView1.translationZ = 10f
+        ViewCompat.setTranslationZ(playerView1, 10f) // 兼容旧版本
+        val params1 = playerView1.layoutParams as RelativeLayout.LayoutParams
+        params1.addRule(RelativeLayout.ALIGN_PARENT_LEFT)  // 左对齐
+        params1.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM) // 底对齐
+        playerView1.layoutParams = params1
+        playerView1.requestLayout()  // 触发重绘
+
+        val params2 = playerView2.layoutParams as ViewGroup.LayoutParams
+        params2.width = ViewGroup.LayoutParams.MATCH_PARENT
+        params2.height = ViewGroup.LayoutParams.MATCH_PARENT
+        playerView2.layoutParams = params2
+
 
         prefs = getSharedPreferences("camera_settings", MODE_PRIVATE)
 
@@ -131,8 +151,6 @@ class MainActivity : AppCompatActivity() {
 
         })
         setConnectState()
-        playerView1 = findViewById(R.id.playerView1)
-        playerView2 = findViewById(R.id.playerView2)
 
         initPlayer()
 
@@ -266,7 +284,6 @@ class MainActivity : AppCompatActivity() {
             releasePlayers() // 确保先释放旧资源
             initPlayer()
         }
-
     }
 
     override fun onResume() {
@@ -285,9 +302,7 @@ class MainActivity : AppCompatActivity() {
                             player1 = mediaPlayer
                             val handler = Handler(Looper.getMainLooper())
                             handler.post {
-                                val linearLayout =
-                                    findViewById<LinearLayout>(R.id.smallVideoContainer)
-                                val params = linearLayout.layoutParams as ViewGroup.LayoutParams
+                                val params = playerView1.layoutParams as ViewGroup.LayoutParams
 
                                 params.width = 384
                                 if (isExchangePlayer) {
@@ -295,7 +310,7 @@ class MainActivity : AppCompatActivity() {
                                 } else {
                                     params.height = 216
                                 }
-                                linearLayout.layoutParams = params
+                                playerView1.layoutParams = params
                             }
                         }
                         2 -> {
