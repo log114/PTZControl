@@ -245,4 +245,18 @@ class ZT6Service: BaseService() {
             else -> "白热"
         }
     }
+
+    // 缩放
+    override fun zoom(type: String) {
+        val msg = ZT6Msg()
+        msg.CMD_ID = 0x05
+        msg.DATA = ByteArray(1)
+        msg.DATA[0] = when(type) {
+            "enlarge" -> 1.toByte()
+            "reduce" -> (-1).toByte()
+            "stop" -> 0.toByte()
+            else -> 0.toByte()
+        }
+        send(msg.getMsg())
+    }
 }

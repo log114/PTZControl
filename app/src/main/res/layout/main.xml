@@ -37,7 +37,7 @@
         android:layout_alignParentEnd="true"
         android:orientation="horizontal"
         android:gravity="end">
-        <!-- 云台偏航回中 -->
+        <!-- 悬浮窗口显示 -->
         <ImageButton
             android:id="@+id/openFloatingWindowButton"
             android:layout_width="40dp"
@@ -49,6 +49,30 @@
             android:padding="6dp"
             android:background="@drawable/round_button_pressed"
             android:contentDescription="悬浮窗显示"/>
+        <!-- 放大 -->
+        <ImageButton
+            android:id="@+id/enlargeButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/enlarge"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="4dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="放大"/>
+        <!-- 缩小 -->
+        <ImageButton
+            android:id="@+id/reduceButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/reduce"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="4dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="缩小"/>
         <!-- 云台回中 -->
         <ImageButton
             android:id="@+id/ptzToCenterButton"

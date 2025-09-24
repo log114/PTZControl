@@ -1,4 +1,5 @@
 package com.yiku.ptzcontrol
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -93,6 +94,7 @@ class MainActivity : AppCompatActivity() {
 
     private var isExchangePlayer = false
 
+    @SuppressLint("ClickableViewAccessibility")
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -200,6 +202,36 @@ class MainActivity : AppCompatActivity() {
                 releasePlayers()
             } else {
                 Log.d(TAG, "Floating window permission not granted")
+            }
+        }
+
+        // 放大
+        findViewById<ImageButton>(R.id.enlargeButton).setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    service.zoom("enlarge")
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    service.zoom("stop")
+                    true // 消费抬起事件
+                }
+                else -> false
+            }
+        }
+
+        // 缩小
+        findViewById<ImageButton>(R.id.reduceButton).setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    service.zoom("reduce")
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    service.zoom("stop")
+                    true // 消费抬起事件
+                }
+                else -> false
             }
         }
 
