@@ -29,6 +29,7 @@ import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
+import androidx.lifecycle.lifecycleScope
 import com.yiku.ptzcontrol.service.BaseService
 import com.yiku.ptzcontrol.service.ZT6Service
 import com.yiku.ptzcontrol.utils.MsgCallback
@@ -37,6 +38,7 @@ import java.util.Timer
 import java.util.TimerTask
 import kotlin.concurrent.thread
 import kotlin.math.abs
+import kotlinx.coroutines.*
 
 class MainActivity : AppCompatActivity() {
     companion object {
@@ -81,6 +83,10 @@ class MainActivity : AppCompatActivity() {
     private var pitchState = 0 // 俯仰状态，0：未到限位，1：已达上限位，2：已达下限位
     private var yawState = 0  // 偏航状态，0：未到限位，1：已达左限位，2：已达右限位
     private var _context: Context = this
+
+    // 添加预加载状态变量
+    private var isPreloading = false
+    private var preloadedUrl: String? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -226,8 +232,36 @@ class MainActivity : AppCompatActivity() {
         }
 
         playerView1.setOnClickListener {
-            switchStreamsSafely()
+            lifecycleScope.launch {
+                switchStreamsSafely()
+            }
         }
+    }
+
+    /**
+     * 预加载另一个流
+     */
+    private fun preloadStream() {
+        if (isPreloading) return
+
+        thread {
+            isPreloading = true
+            val urlToPreload = if (isExchangePlayer) streamUrl1 else streamUrl2
+
+            // 模拟预加载：提前初始化解码器但不开始播放
+            Log.d(TAG, "预加载流: $urlToPreload")
+
+            // 这里可以提前探测流信息并缓存
+            preloadedUrl = urlToPreload
+            isPreloading = false
+        }
+    }
+
+    // 在适当的时机调用预加载，比如应用启动后或空闲时
+    private fun schedulePreload() {
+        Handler(Looper.getMainLooper()).postDelayed({
+            preloadStream()
+        }, 5000) // 5秒后开始预加载
     }
 
     // 设置伪彩默认选中项
@@ -315,33 +349,6 @@ class MainActivity : AppCompatActivity() {
         player2 = RtspPlayer(streamUrl2, playerView2, object : RtspPlayer.RtspPlayerEventListener {
             override fun onPlaying() {
 //                showToast("开始播放")
-            }
-
-            override fun onStopped() {
-//                showToast("播放停止")
-            }
-
-            override fun onError(errorMessage: String) {
-//                showToast("错误: $errorMessage")
-            }
-
-            override fun onLogMessage(message: String) {
-//                Log.d("RtspPlayer", message)
-            }
-
-            override fun onVideoSizeChanged(width: Int, height: Int) {
-                // 可选的视频尺寸变化处理
-            }
-
-            override fun onFrameRendered(frameCount: Int) {
-                // 可选的帧渲染回调
-            }
-        })
-        Thread.sleep(100)
-        // 创建播放器1
-        player1 = RtspPlayer(streamUrl1, playerView1, object : RtspPlayer.RtspPlayerEventListener {
-            override fun onPlaying() {
-//                showToast("开始播放")
                 val handler = Handler(Looper.getMainLooper())
                 handler.post {
                     val params = playerView1.layoutParams as ViewGroup.LayoutParams
@@ -376,60 +383,98 @@ class MainActivity : AppCompatActivity() {
                 // 可选的帧渲染回调
             }
         })
+        Thread.sleep(100)
+        // 创建播放器1
+        player1 = RtspPlayer(streamUrl1, playerView1, object : RtspPlayer.RtspPlayerEventListener {
+            override fun onPlaying() {
+//                showToast("开始播放")
+            }
+
+            override fun onStopped() {
+//                showToast("播放停止")
+            }
+
+            override fun onError(errorMessage: String) {
+//                showToast("错误: $errorMessage")
+            }
+
+            override fun onLogMessage(message: String) {
+//                Log.d("RtspPlayer", message)
+            }
+
+            override fun onVideoSizeChanged(width: Int, height: Int) {
+                // 可选的视频尺寸变化处理
+            }
+
+            override fun onFrameRendered(frameCount: Int) {
+                // 可选的帧渲染回调
+//                Log.d(TAG, "渲染")
+            }
+        })
     }
 
     /**
      * 安全的视频流切换方法
      */
-    private fun switchStreamsSafely() {
-        Log.d(TAG, "开始安全切换视频流")
-        // 检查Surface状态
+    // 确保在协程作用域内调用
+    private suspend fun switchStreamsSafely() {
+        Log.d(TAG, "开始并行切换视频流")
+
         if (!playerView1.holder.surface.isValid || !playerView2.holder.surface.isValid) {
             Log.e(TAG, "Surface无效，重新初始化播放器")
             restartPlayers()
             return
         }
 
-        // 在后台线程执行切换
-        thread {
-            try {
-                // 暂停两个播放器
-                player1?.pausePlayback()
-                player2?.pausePlayback()
-
-                // 给播放器一点时间暂停
-                Thread.sleep(50)
+        try {
+            // 使用 coroutineScope 创建协程作用域
+            coroutineScope {
+                // 并行暂停两个播放器
+                val pauseTask1 = async { player1?.pausePlayback() }
+                val pauseTask2 = async { player2?.pausePlayback() }
+                pauseTask1.await()
+                pauseTask2.await()
 
                 // 交换URL
                 val tempUrl = streamUrl1
                 streamUrl1 = streamUrl2
                 streamUrl2 = tempUrl
 
-                Log.d(TAG, "交换URL: $tempUrl <-> $streamUrl1")
-                Log.d(TAG, "player1切换到: $streamUrl1")
-                Log.d(TAG, "player2切换到: $streamUrl2")
+                Log.d(TAG, "交换URL: $streamUrl1 <-> $streamUrl2")
+                val handler = Handler(Looper.getMainLooper())
+                handler.post {
+                    val params = playerView1.layoutParams as ViewGroup.LayoutParams
 
-                // 顺序切换，避免同时操作
-                player1?.switchStream(streamUrl1)
-                Thread.sleep(100) // 间隔一下
-                player2?.switchStream(streamUrl2)
+                    params.width = 384
+                    if (isExchangePlayer) {
+                        params.height = 308
+                    } else {
+                        params.height = 216
+                    }
+                    playerView1.layoutParams = params
+                }
 
-                // 更新交换状态
+                // 并行切换流
+                val switchTask1 = async {
+                    player1?.switchStreamOptimized(streamUrl1, false)
+                }
+                val switchTask2 = async {
+                    player2?.switchStreamOptimized(streamUrl2, false)
+                }
+                switchTask1.await()
+                switchTask2.await()
+
                 isExchangePlayer = !isExchangePlayer
 
-                runOnUiThread {
-                    Toast.makeText(this, "画面切换完成", Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, "视频流切换完成")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "画面切换完成", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "视频流并行切换完成")
                 }
-
-            } catch (e: Exception) {
-                Log.e(TAG, "切换视频流异常: ${e.message}")
-                e.printStackTrace()
-
-                // 出错时尝试完全重新开始
-                runOnUiThread {
-                    restartPlayers()
-                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换视频流异常: ${e.message}")
+            withContext(Dispatchers.Main) {
+                restartPlayers()
             }
         }
     }

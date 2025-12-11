@@ -168,41 +168,6 @@ class RtspPlayer(
     }
 
     /**
-     * 切换视频流（正确处理H.264/H.265切换）
-     */
-    fun switchStream(newUrl: String): Boolean {
-        Log.d(TAG, "开始切换视频流: $url -> $newUrl")
-
-        return try {
-            // 标记为重启状态，避免重复调用检查
-            isRestarting = true
-
-            // 先暂停处理
-            isStreaming = false
-            isProcessing = false
-
-            // 停止所有处理线程
-            stopFFmpegProcess()
-            stopMediaCodec()
-
-            // 清空队列
-            inputQueue.clear()
-
-            // 更新URL
-            url = newUrl
-
-            // 重新开始播放
-            startPlayback(newUrl)
-
-            true
-        } catch (e: Exception) {
-            eventListener?.onError("切换视频流失败: ${e.message}")
-            isRestarting = false
-            false
-        }
-    }
-
-    /**
      * 停止播放
      */
     fun stopPlayback() {
@@ -241,36 +206,57 @@ class RtspPlayer(
     }
 
     /**
+     * 优化的流切换方法，避免完全重新初始化
+     */
+    fun switchStreamOptimized(newUrl: String, forceReinit: Boolean = false): Boolean {
+        Log.d(TAG, "开始优化切换视频流: $url -> $newUrl")
+
+        return try {
+            isRestarting = true
+            isStreaming = false
+            isProcessing = false
+
+            // 停止当前流处理但不释放MediaCodec
+            stopFFmpegProcess()
+            inputQueue.clear()
+
+            // 如果强制重新初始化或编码格式可能变化，则完全重启
+            if (forceReinit || shouldReinitializeCodec(newUrl)) {
+                Log.d(TAG, "需要重新初始化MediaCodec")
+                stopMediaCodec()
+                url = newUrl
+                startPlayback(newUrl)
+            } else {
+                // 快速路径：只重启FFmpeg进程，复用MediaCodec
+                Log.d(TAG, "快速切换：复用MediaCodec")
+                url = newUrl
+                startFFmpegProcess(buildFFmpegCommand(newUrl, isH265), currentMimeType!!)
+                isProcessing = true
+                startDecoderThread()
+            }
+
+            isRestarting = false
+            true
+        } catch (e: Exception) {
+            eventListener?.onError("优化切换视频流失败: ${e.message}")
+            isRestarting = false
+            false
+        }
+    }
+
+    /**
+     * 检查是否需要重新初始化解码器
+     */
+    private fun shouldReinitializeCodec(newUrl: String): Boolean {
+        // 如果已知流参数相同，可以跳过重新初始化
+        // 这里可以添加更智能的检测逻辑，比如缓存流信息进行比较
+        return false // 临时返回false，假设流参数相同
+    }
+
+    /**
      * 获取播放状态
      */
     fun isPlaying(): Boolean = isPlaying
-
-    /**
-     * 获取统计数据
-     */
-    fun getStatistics(): PlaybackStatistics {
-        val currentTime = System.currentTimeMillis()
-        val duration = if (isPlaying) currentTime - startTime else 0L
-        val fps = if (duration > 0) frameCount * 1000 / duration else 0
-
-        return PlaybackStatistics(
-            isPlaying = isPlaying,
-            durationMs = duration,
-            frameCount = frameCount,
-            totalBytes = totalBytesReceived,
-            averageFps = fps,
-            bitrateKbps = if (duration > 0) (totalBytesReceived * 8) / duration else 0
-        )
-    }
-
-    data class PlaybackStatistics(
-        val isPlaying: Boolean,
-        val durationMs: Long,
-        val frameCount: Int,
-        val totalBytes: Long,
-        val averageFps: Long,
-        val bitrateKbps: Long
-    )
 
     // SurfaceHolder.Callback实现
     override fun surfaceCreated(holder: SurfaceHolder) {
