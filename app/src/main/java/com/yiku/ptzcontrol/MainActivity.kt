@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
-import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -13,6 +12,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.MotionEvent
+import android.view.SurfaceView
 import android.view.View
 import android.view.View.OnTouchListener
 import android.view.ViewGroup
@@ -28,21 +28,15 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
-import org.videolan.libvlc.MediaPlayer
-import org.videolan.libvlc.util.VLCVideoLayout
 import com.yiku.ptzcontrol.service.BaseService
-import com.yiku.ptzcontrol.service.BaseService.OnDataReceivedListener
 import com.yiku.ptzcontrol.service.ZT6Service
-import com.yiku.ptzcontrol.utils.CommonMethods
 import com.yiku.ptzcontrol.utils.MsgCallback
 import com.yiku.ptzcontrol.utils.RtspPlayer
 import java.util.Timer
 import java.util.TimerTask
 import kotlin.concurrent.thread
 import kotlin.math.abs
-import com.yiku.ptzcontrol.utils.PlayerCallback
 
 class MainActivity : AppCompatActivity() {
     companion object {
@@ -56,15 +50,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var isFirst = true
-    private var player1: MediaPlayer? = null
-    private var player2: MediaPlayer? = null
+    private var player1: RtspPlayer? = null
+    private var player2: RtspPlayer? = null
     private lateinit var floatingManager: FloatingWindowManager
-    private lateinit var playerView1: VLCVideoLayout    // 小窗口
-    private lateinit var playerView2: VLCVideoLayout    // 全屏窗口
+    private lateinit var playerView1: SurfaceView    // 小窗口
+    private lateinit var playerView2: SurfaceView    // 全屏窗口
     private var isConnecting: Boolean = false
     private var isFirstConnect: Boolean = true
-
-    private var rtspPlayer: RtspPlayer? = null
 
     private var isSetting: Boolean = false
     // 调试标签
@@ -198,8 +190,6 @@ class MainActivity : AppCompatActivity() {
             // 尝试显示悬浮窗
             if (floatingManager.checkOverlayPermission()) {
                 floatingManager.showFloatingWindow(streamUrl2, isExchangePlayer)
-                // 释放掉播放器
-                releasePlayers()
             } else {
                 Log.d(TAG, "Floating window permission not granted")
             }
@@ -236,24 +226,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         playerView1.setOnClickListener {
-            // 交换前暂停播放
-            player1?.pause()
-            player2?.pause()
-
-            // 交换数据源（非重新创建MediaPlayer）
-            val tempMedia = player1?.media
-            player1?.media = player2?.media
-            player2?.media = tempMedia
-
-            // 恢复播放
-            player1?.play()
-            player2?.play()
-
-            // 交换连接，使得退回该页面时，加载的内容与离开前一直
-            val tempUrl = streamUrl1
-            streamUrl1 = streamUrl2
-            streamUrl2 = tempUrl
-            isExchangePlayer = !isExchangePlayer
+            switchStreamsSafely()
         }
     }
 
@@ -312,9 +285,22 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        if(rtspPlayer != null) {
-            releasePlayers() // 确保先释放旧资源
-            initPlayer()
+        Log.d(TAG, "playerView1.holder.surface.isValid1=${playerView1.holder.surface.isValid}")
+        // 确保SurfaceView已准备好
+        if (playerView1.holder.surface.isValid && playerView2.holder.surface.isValid) {
+            if (player1 == null || player2 == null) {
+                releasePlayers()
+                initPlayer()
+            }
+        } else {
+            // 延迟初始化等待Surface准备好
+            Handler(Looper.getMainLooper()).postDelayed({
+                Log.d(TAG, "playerView1.holder.surface.isValid2=${playerView1.holder.surface.isValid}")
+                if (player1 == null || player2 == null) {
+                    releasePlayers()
+                    initPlayer()
+                }
+            }, 300)
         }
     }
 
@@ -324,58 +310,153 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initPlayer() {
-        if(rtspPlayer == null) {
-            rtspPlayer = RtspPlayer(this)
-            rtspPlayer?.registPlayerCallback(object : PlayerCallback {
-                override fun onPlaying(index: Int, mediaPlayer: MediaPlayer) {
-                    Log.i(TAG, "视频${index}播放成功")
-                    when(index) {
-                        1 -> {
-                            player1 = mediaPlayer
-                            val handler = Handler(Looper.getMainLooper())
-                            handler.post {
-                                val params = playerView1.layoutParams as ViewGroup.LayoutParams
 
-                                params.width = 384
-                                if (isExchangePlayer) {
-                                    params.height = 308
-                                } else {
-                                    params.height = 216
-                                }
-                                playerView1.layoutParams = params
-                            }
-                        }
-                        2 -> {
-                            player2 = mediaPlayer
-                        }
-                    }
-                }
+        // 创建播放器2
+        player2 = RtspPlayer(streamUrl2, playerView2, object : RtspPlayer.RtspPlayerEventListener {
+            override fun onPlaying() {
+//                showToast("开始播放")
+            }
 
-                override fun onError(index: Int) {
-                    var errorMsg = ""
-                    when(index) {
-                        1 -> {
-                            errorMsg = if(isExchangePlayer) {
-                                "热成像视频播放失败"
-                            } else {
-                                "可见光视频播放失败"
-                            }
-                        }
-                        2 -> {
-                            errorMsg = if(isExchangePlayer) {
-                                "可见光视频播放失败"
-                            } else {
-                                "热成像视频播放失败"
-                            }
-                        }
+            override fun onStopped() {
+//                showToast("播放停止")
+            }
+
+            override fun onError(errorMessage: String) {
+//                showToast("错误: $errorMessage")
+            }
+
+            override fun onLogMessage(message: String) {
+//                Log.d("RtspPlayer", message)
+            }
+
+            override fun onVideoSizeChanged(width: Int, height: Int) {
+                // 可选的视频尺寸变化处理
+            }
+
+            override fun onFrameRendered(frameCount: Int) {
+                // 可选的帧渲染回调
+            }
+        })
+        Thread.sleep(100)
+        // 创建播放器1
+        player1 = RtspPlayer(streamUrl1, playerView1, object : RtspPlayer.RtspPlayerEventListener {
+            override fun onPlaying() {
+//                showToast("开始播放")
+                val handler = Handler(Looper.getMainLooper())
+                handler.post {
+                    val params = playerView1.layoutParams as ViewGroup.LayoutParams
+
+                    params.width = 384
+                    if (isExchangePlayer) {
+                        params.height = 308
+                    } else {
+                        params.height = 216
                     }
-                    Log.e(TAG, errorMsg)
-                    Toast.makeText(_context, errorMsg, Toast.LENGTH_SHORT).show()
+                    playerView1.layoutParams = params
                 }
-            })
+            }
+
+            override fun onStopped() {
+//                showToast("播放停止")
+            }
+
+            override fun onError(errorMessage: String) {
+//                showToast("错误: $errorMessage")
+            }
+
+            override fun onLogMessage(message: String) {
+//                Log.d("RtspPlayer", message)
+            }
+
+            override fun onVideoSizeChanged(width: Int, height: Int) {
+                // 可选的视频尺寸变化处理
+            }
+
+            override fun onFrameRendered(frameCount: Int) {
+                // 可选的帧渲染回调
+            }
+        })
+    }
+
+    /**
+     * 安全的视频流切换方法
+     */
+    private fun switchStreamsSafely() {
+        Log.d(TAG, "开始安全切换视频流")
+        // 检查Surface状态
+        if (!playerView1.holder.surface.isValid || !playerView2.holder.surface.isValid) {
+            Log.e(TAG, "Surface无效，重新初始化播放器")
+            restartPlayers()
+            return
         }
-        rtspPlayer?.createPlayer(1, playerView1, streamUrl1)
-        rtspPlayer?.createPlayer(2, playerView2, streamUrl2)
+
+        // 在后台线程执行切换
+        thread {
+            try {
+                // 暂停两个播放器
+                player1?.pausePlayback()
+                player2?.pausePlayback()
+
+                // 给播放器一点时间暂停
+                Thread.sleep(50)
+
+                // 交换URL
+                val tempUrl = streamUrl1
+                streamUrl1 = streamUrl2
+                streamUrl2 = tempUrl
+
+                Log.d(TAG, "交换URL: $tempUrl <-> $streamUrl1")
+                Log.d(TAG, "player1切换到: $streamUrl1")
+                Log.d(TAG, "player2切换到: $streamUrl2")
+
+                // 顺序切换，避免同时操作
+                player1?.switchStream(streamUrl1)
+                Thread.sleep(100) // 间隔一下
+                player2?.switchStream(streamUrl2)
+
+                // 更新交换状态
+                isExchangePlayer = !isExchangePlayer
+
+                runOnUiThread {
+                    Toast.makeText(this, "画面切换完成", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "视频流切换完成")
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "切换视频流异常: ${e.message}")
+                e.printStackTrace()
+
+                // 出错时尝试完全重新开始
+                runOnUiThread {
+                    restartPlayers()
+                }
+            }
+        }
+    }
+
+    /**
+     * 完全重启播放器
+     */
+    private fun restartPlayers() {
+        Log.d(TAG, "完全重启播放器")
+
+        // 释放旧播放器
+        player1?.release()
+        player2?.release()
+        player1 = null
+        player2 = null
+
+        // 重新创建播放器
+        initPlayer()
+    }
+
+    private fun showToast(msg: String) {
+        val handler = Handler(Looper.getMainLooper())
+        handler.post {
+            Toast.makeText(
+                this, msg, Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     override fun onPause() {
@@ -392,10 +473,6 @@ class MainActivity : AppCompatActivity() {
         Log.d(TAG, "onDestroy")
         // 释放播放器资源
         releasePlayers()
-        if(rtspPlayer != null) {
-            rtspPlayer!!.release()
-            rtspPlayer = null
-        }
 //        service.ptzAnglePush(false)
         service.disconnect()
         // 确保关闭悬浮窗
@@ -407,23 +484,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun releasePlayers() {
-        // 确保释放顺序：先停止播放，再解除视图绑定，最后释放资源
-        if (player1 != null) {
-            player1.apply {
-                this!!.stop()
-                detachViews()
-                release()
-            }
-            player1 = null
-        }
-        if (player2 != null) {
-            player2.apply {
-                this!!.stop()
-                detachViews()
-                release()
-            }
-            player2 = null
-        }
+        player1?.release()
+        player1 = null
+        player2?.release()
+        player2 = null
         Log.i(TAG, "播放器释放完成")
     }
 

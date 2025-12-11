@@ -8,15 +8,19 @@
     tools:context=".MainActivity">
 
     <!-- 全屏布局 -->
-    <org.videolan.libvlc.util.VLCVideoLayout
+    <SurfaceView
         android:id="@+id/playerView2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
 
-    <org.videolan.libvlc.util.VLCVideoLayout
+    <SurfaceView
         android:id="@+id/playerView1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        android:layout_width="384dp"
+        android:layout_height="216dp"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"
+        android:layout_margin="16dp"
+        android:translationZ="10dp"/>
 
     <!-- 透明覆盖层用于捕获拖拽事件 -->
     <View

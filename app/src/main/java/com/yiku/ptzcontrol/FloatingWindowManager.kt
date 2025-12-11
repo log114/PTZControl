@@ -12,28 +12,25 @@ import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.SurfaceView
 import android.view.View
 import android.view.ViewConfiguration
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.constraintlayout.widget.ConstraintLayout
-import com.yiku.ptzcontrol.utils.PlayerCallback
 import com.yiku.ptzcontrol.utils.RtspPlayer
-import org.videolan.libvlc.MediaPlayer
-import org.videolan.libvlc.util.VLCVideoLayout
 import kotlin.math.sqrt
 
 class FloatingWindowManager(private val context: Context) {
 
     private val TAG = "FloatingWindowManager"
     private var floatingView: View? = null
-    private var floatingPlayer: MediaPlayer? = null
-    private var playerView: VLCVideoLayout? = null
-    private var rtspPlayer: RtspPlayer = RtspPlayer(context)
+    private var playerView: SurfaceView? = null
+    private var rtspPlayer: RtspPlayer? = null
 
     // 新增视图引用
     private var playerContainer: FrameLayout? = null
@@ -94,18 +91,34 @@ class FloatingWindowManager(private val context: Context) {
 
                 // 创建播放器（如果有流）
                 if (streamUrl != "") {
-                    rtspPlayer.registPlayerCallback(object : PlayerCallback {
-                        override fun onPlaying(index: Int, mediaPlayer: MediaPlayer) {
-                            Log.i(TAG, "悬浮窗视频播放成功")
-                            floatingPlayer = mediaPlayer
-                        }
+                    if(rtspPlayer == null) {
+                        // 创建播放器1
+                        rtspPlayer = RtspPlayer(streamUrl, playerView!!, object : RtspPlayer.RtspPlayerEventListener {
+                            override fun onPlaying() {
+                            }
 
-                        override fun onError(index: Int) {
-                            Log.e(TAG, "悬浮窗视频播放失败")
-                            Toast.makeText(context, "悬浮窗视频播放失败", Toast.LENGTH_SHORT).show()
-                        }
-                    })
-                    rtspPlayer.createPlayer(3, playerView!!, streamUrl)
+                            override fun onStopped() {
+                            }
+
+                            override fun onError(errorMessage: String) {
+                            }
+
+                            override fun onLogMessage(message: String) {
+                            }
+
+                            override fun onVideoSizeChanged(width: Int, height: Int) {
+                                // 可选的视频尺寸变化处理
+                            }
+
+                            override fun onFrameRendered(frameCount: Int) {
+                                // 可选的帧渲染回调
+                            }
+                        })
+                    }
+                    else {
+                        rtspPlayer?.startPlayback(streamUrl)
+                    }
+
                     findViewById<ConstraintLayout>(R.id.rootLayout).visibility = View.VISIBLE
                     playerView?.visibility = View.VISIBLE
                 }
@@ -150,7 +163,7 @@ class FloatingWindowManager(private val context: Context) {
 
     fun isFloatingWindowShowing(): Boolean {
         return floatingView != null &&
-                floatingPlayer != null
+                rtspPlayer != null
     }
 
     // 关闭悬浮窗
@@ -158,14 +171,8 @@ class FloatingWindowManager(private val context: Context) {
         Log.d(TAG, "准备关闭悬浮窗")
         floatingView?.let {
             try {
-                // 先停止播放
-                floatingPlayer?.stop()
-                rtspPlayer.release()
-
-                // 同步释放播放器资源
-                floatingPlayer?.detachViews()
-                floatingPlayer?.release()
-                floatingPlayer = null
+                rtspPlayer?.release()
+                rtspPlayer = null
 
                 // 再移除视图
                 floatingView?.let {
@@ -243,6 +250,7 @@ class FloatingWindowManager(private val context: Context) {
 }
 
 // 实现悬浮窗拖动功能
+// 实现悬浮窗拖动功能
 class FloatingTouchListener(
     private val windowManager: WindowManager,
     private val view: View,
@@ -252,8 +260,8 @@ class FloatingTouchListener(
     private val TAG = "FloatingWindowDebug"
     private var initialX = 0
     private var initialY = 0
-    private var initialRawX = 0f
-    private var initialRawY = 0f
+    private var lastRawX = 0f
+    private var lastRawY = 0f
 
     // 缩放相关变量
     private var initialTouchDistance = 0f
@@ -276,17 +284,18 @@ class FloatingTouchListener(
                 val params = view.getParams()
                 initialX = params.x
                 initialY = params.y
-                initialRawX = event.rawX
-                initialRawY = event.rawY
+
+                // 关键修复：使用 event.rawX 和 event.rawY
+                lastRawX = event.rawX
+                lastRawY = event.rawY
+
                 activePointerId = event.getPointerId(0)
-                initialWidth = view.width
-                initialHeight = view.height
                 isDragging = false
                 isScaling = false
 
                 // 检查是否点击在按钮上
                 if (isInsideView(event.rawX, event.rawY, exitButton) ||
-                    isInsideView(event.rawX, event.rawY, closeButton)) {
+                    isInsideView(event.rawY, event.rawY, closeButton)) {
                     return false
                 }
                 return true
@@ -304,7 +313,6 @@ class FloatingTouchListener(
 
                     // 获取两指中心点
                     lastMidPoint = getMidPoint(event)
-
                     return true
                 }
             }
@@ -313,39 +321,35 @@ class FloatingTouchListener(
                 // 缩放模式
                 if (isScaling && event.pointerCount == 2) {
                     val currentDistance = getDistance(event)
-
-                    // 使用比例而不是固定阈值
                     val scaleFactor = currentDistance / initialTouchDistance
 
-                    // 计算新的宽度和高度 (扩大限制范围)
                     val newWidth = (initialWidth * scaleFactor).toInt().coerceIn(150, 2000)
                     val newHeight = (initialHeight * scaleFactor).toInt().coerceIn(150, 2000)
-
-                    // 更新布局参数
                     updateViewLayout(newWidth, newHeight)
 
-                    // 更新中心点位置
                     val newMidPoint = getMidPoint(event)
                     val dx = newMidPoint.x - lastMidPoint.x
                     val dy = newMidPoint.y - lastMidPoint.y
 
-                    // 移动视图以保持中心点稳定
                     val params = view.getParams().apply {
                         x = (x - dx).toInt()
                         y = (y - dy).toInt()
                     }
                     windowManager.updateViewLayout(view, params)
-
                     lastMidPoint = newMidPoint
                     return true
                 }
-                // 拖动模式（单指）
+                // 拖动模式（单指）- 使用相对位移计算
                 else if (activePointerId != MotionEvent.INVALID_POINTER_ID && !isScaling) {
                     val pointerIndex = event.findPointerIndex(activePointerId)
                     if (pointerIndex == -1) return true
 
-                    val dx = (event.rawX - initialRawX)
-                    val dy = (event.rawY - initialRawY)
+                    // 关键修复：使用 rawX 和 rawY 计算位移增量
+                    val currentRawX = event.rawX
+                    val currentRawY = event.rawY
+
+                    val dx = currentRawX - lastRawX
+                    val dy = currentRawY - lastRawY
 
                     if (!isDragging) {
                         isDragging = sqrt(dx * dx + dy * dy) >= touchSlop
@@ -353,40 +357,51 @@ class FloatingTouchListener(
 
                     if (isDragging) {
                         val params = view.getParams()
-                        params.x = initialX + dx.toInt()
-                        params.y = initialY + dy.toInt()
+                        params.x = (params.x + dx).toInt()
+                        params.y = (params.y + dy).toInt()
+
+                        // 边界检查
+                        val displayMetrics = view.context.resources.displayMetrics
+                        val maxX = displayMetrics.widthPixels - view.width
+                        val maxY = displayMetrics.heightPixels - view.height
+
+                        params.x = params.x.coerceIn(0, maxX)
+                        params.y = params.y.coerceIn(0, maxY)
+
                         windowManager.updateViewLayout(view, params)
-                        return true
                     }
+
+                    // 关键：更新最后触摸位置
+                    lastRawX = currentRawX
+                    lastRawY = currentRawY
+                    return true
                 }
             }
 
             MotionEvent.ACTION_POINTER_UP -> {
                 val pointerIndex = event.actionIndex
                 val pointerId = event.getPointerId(pointerIndex)
+
                 if (pointerId == activePointerId) {
+                    // 切换主动指针
                     val newPointerIndex = if (pointerIndex == 0) 1 else 0
                     activePointerId = event.getPointerId(newPointerIndex)
-                    initialRawX = event.getX(newPointerIndex) + view.left
-                    initialRawY = event.getY(newPointerIndex) + view.top
 
-                    // 更新初始位置
-                    val params = view.getParams()
-                    initialX = params.x
-                    initialY = params.y
-
-                    // 退出缩放模式
-                    if (isScaling) {
-                        isScaling = false
-                        return true
+                    // 更新最后触摸位置
+                    val newPointerIdx = event.findPointerIndex(activePointerId)
+                    if (newPointerIdx != -1) {
+                        // 使用新指针的 rawX/rawY
+                        lastRawX = event.rawX
+                        lastRawY = event.rawY
                     }
-                } else if (pointerId != activePointerId) {
-                    // 更新初始距离以防止跳跃
-                    initialTouchDistance = getDistance(event)
+                }
+
+                if (event.pointerCount < 2) {
+                    isScaling = false
                 }
             }
 
-            MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 activePointerId = MotionEvent.INVALID_POINTER_ID
                 isDragging = false
                 isScaling = false
