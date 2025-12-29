@@ -47,7 +47,7 @@
             android:id="@+id/ipAddress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="192.168.144.25"
+            android:text="192.168.144.108"
             android:textColor="@android:color/white"
             android:background="#FF454545"
             android:padding="12dp"
@@ -67,7 +67,7 @@
             android:id="@+id/streamUrl_1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="rtsp://192.168.144.25:8554/video1"
+            android:text="rtsp://192.168.144.108:554/stream=0"
             android:textColor="@android:color/white"
             android:background="#FF454545"
             android:padding="12dp"/>
@@ -84,7 +84,7 @@
             android:id="@+id/streamUrl_2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="rtsp://192.168.144.25:8554/video2"
+            android:text="rtsp://192.168.144.108:554/stream=1"
             android:textColor="@android:color/white"
             android:background="#FF454545"
             android:padding="12dp"/>

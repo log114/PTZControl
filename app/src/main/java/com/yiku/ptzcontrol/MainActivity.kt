@@ -34,7 +34,7 @@ import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.util.VLCVideoLayout
 import com.yiku.ptzcontrol.service.BaseService
 import com.yiku.ptzcontrol.service.BaseService.OnDataReceivedListener
-import com.yiku.ptzcontrol.service.ZT6Service
+import com.yiku.ptzcontrol.service.C12Service
 import com.yiku.ptzcontrol.utils.CommonMethods
 import com.yiku.ptzcontrol.utils.MsgCallback
 import com.yiku.ptzcontrol.utils.RtspPlayer
@@ -61,8 +61,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var floatingManager: FloatingWindowManager
     private lateinit var playerView1: VLCVideoLayout    // 小窗口
     private lateinit var playerView2: VLCVideoLayout    // 全屏窗口
-    private var isConnecting: Boolean = false
-    private var isFirstConnect: Boolean = true
 
     private var rtspPlayer: RtspPlayer? = null
 
@@ -93,6 +91,7 @@ class MainActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var isExchangePlayer = false
+    private var isZooming = false
 
     @SuppressLint("ClickableViewAccessibility")
     @RequiresApi(Build.VERSION_CODES.O)
@@ -132,27 +131,12 @@ class MainActivity : AppCompatActivity() {
 
         prefs = getSharedPreferences("camera_settings", MODE_PRIVATE)
 
-        streamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.25:8554/video1")!!
-        streamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.25:8554/video2")!!
-        host = prefs.getString("ip_address", "192.168.144.25")!!
+        streamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.108:554/stream=1")!!
+        streamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.108:555/stream=2")!!
+        host = prefs.getString("ip_address", "192.168.144.108")!!
 
-        service = ZT6Service()
-        service.registMsgCallback(object : MsgCallback {
-            override fun getId(): String {
-                return "ThrowerWeightCallback"
-            }
-            override fun onMsg(msg: ByteArray) {
-                if (msg[0] != 0x55.toByte() || msg[1] != 0x66.toByte()) {
-                    return
-                }
-                // 伪彩
-                if (msg[7] == 0x1A.toByte()) {
-                    onColorDataReceived(msg)
-                }
-            }
-
-        })
-        setConnectState()
+        service = C12Service()
+        service.connect(host)
 
         initPlayer()
 
@@ -186,6 +170,32 @@ class MainActivity : AppCompatActivity() {
 
         // 设置伪彩菜单
         setupFilterMenu()
+        // 获取并设置伪彩默认选中项
+        service.getPseudoColor(object: OnDataReceivedListener {
+            override fun onDataReceived(data: String) {
+                runOnUiThread {
+                    val newPosition = service.colorList.indexOf(data)
+                    if (newPosition != -1) {
+                        currentFilterPosition = newPosition
+                    }
+
+                    // 刷新菜单确保选中状态正确
+                    (filterListView.adapter as? BaseAdapter)?.notifyDataSetChanged()
+
+                    Log.d(TAG, "当前伪彩模式设置为: ${service.colorList[currentFilterPosition]}")
+                }
+                // 收到伪彩信息后，才发送请求，请求推送云台角度数据
+                service.ptzAnglePush(true)
+                setDataReceivedListener()
+            }
+
+            override fun onError(error: String) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "获取伪彩失败: $error", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+        })
 
         // 添加全局点击监听（点击菜单外区域关闭菜单）
         findViewById<View>(R.id.dragOverlay).setOnClickListener {
@@ -206,14 +216,31 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 放大
+        findViewById<ImageButton>(R.id.enlargeButton).setOnTouchListener({ v, event ->
+            service.enlarge()
+            false
+        })
+        // 缩小
+        findViewById<ImageButton>(R.id.reduceButton).setOnTouchListener({ v, event ->
+            service.reduce()
+            false
+        })
+
+        // 放大
         findViewById<ImageButton>(R.id.enlargeButton).setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    service.zoom("enlarge")
+                    isZooming = true
+                    thread {
+                        while (isZooming) {
+                            service.enlarge()
+                            Thread.sleep(100)
+                        }
+                    }
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    service.zoom("stop")
+                    isZooming = false
                     true // 消费抬起事件
                 }
                 else -> false
@@ -224,11 +251,17 @@ class MainActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.reduceButton).setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    service.zoom("reduce")
+                    isZooming = true
+                    thread {
+                        while (isZooming) {
+                            service.reduce()
+                            Thread.sleep(100)
+                        }
+                    }
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    service.zoom("stop")
+                    isZooming = false
                     true // 消费抬起事件
                 }
                 else -> false
@@ -257,25 +290,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // 设置伪彩默认选中项
-    private fun onColorDataReceived(data: ByteArray) {
-        val colorCode = data[8].toInt()
-        val colorStr = service.convertPseudoColorInt2Str(colorCode)
-        runOnUiThread {
-            val newPosition = service.colorList.indexOf(colorStr)
-            if (newPosition != -1) {
-                currentFilterPosition = newPosition
-            }
-
-            // 刷新菜单确保选中状态正确
-            (filterListView.adapter as? BaseAdapter)?.notifyDataSetChanged()
-
-            Log.d(TAG, "当前伪彩模式设置为: ${service.colorList[currentFilterPosition]}")
-        }
-        // 收到伪彩信息后，才发送请求，请求推送云台角度数据
-//        service.ptzAnglePush(true)
-    }
-
     override fun onStart() {
         super.onStart()
         Log.d(TAG, "onStart")
@@ -287,15 +301,15 @@ class MainActivity : AppCompatActivity() {
         floatingManager.closeFloatingWindow()
         Log.d(TAG, "悬浮窗关闭完成")
 
-        val newHost = prefs.getString("ip_address", "192.168.144.25")!!
+        val newHost = prefs.getString("ip_address", "192.168.144.108")!!
         // 如果ip变了，断开重连
         if(newHost != host) {
             service.disconnect()
             host = newHost
             service.connect(host)
         }
-        val newStreamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.25:8554/video1")!!
-        val newStreamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.25:8554/video2")!!
+        val newStreamUrl1 = prefs.getString("stream_url_1", "rtsp://192.168.144.108:554/stream=1")!!
+        val newStreamUrl2 = prefs.getString("stream_url_2", "rtsp://192.168.144.108:555/stream=2")!!
         if(newStreamUrl1 != streamUrl1 || newStreamUrl2 != streamUrl2) {
             if(isExchangePlayer) {
                 streamUrl1 = newStreamUrl2
@@ -338,7 +352,7 @@ class MainActivity : AppCompatActivity() {
 
                                 params.width = 384
                                 if (isExchangePlayer) {
-                                    params.height = 308
+                                    params.height = 288
                                 } else {
                                     params.height = 216
                                 }
@@ -578,7 +592,6 @@ class MainActivity : AppCompatActivity() {
         triggerRunnable?.let { triggerHandler.removeCallbacks(it) }
         triggerRunnable = null
         currentDirection = DIRECTION_NONE
-        service.stopMove()
     }
 
     // 初始化伪彩设置菜单
@@ -638,31 +651,45 @@ class MainActivity : AppCompatActivity() {
         service.setPseudoColor(colorName)
     }
 
-    // 定时器，判断连接状态
-    private fun setConnectState() {
-        val timer = Timer();
-        val task = object : TimerTask() {
-            override fun run() {
-                if(service.getIsConnected()){
-                    service.heartbeat()
-                }
-                else if(!isConnecting){
-                    isConnecting = true
-                    // 尝试重连
-                    thread {
-                        if(!isFirstConnect) {
-                            Thread.sleep(10000)
-                        }
-                        isFirstConnect = false
-                        while (!service.connect(host)) {
-                            Thread.sleep(1000)
-                        }
-                        isConnecting = false
+    private fun setDataReceivedListener() {
+        val listener = object : OnDataReceivedListener {
+            override fun onDataReceived(data: String) {
+                // 云台数据
+                if(data.contains("#tpUGCrGAC")) {
+                    if (data.length < 24) {
+                        return
+                    }
+                    val yawStateStr = data.substring(10, 14)
+                    val pitchStateStr = data.substring(14, 18)
+                    val yawStateNum = CommonMethods.hexToSignedInt(yawStateStr)
+                    val pitchStateNum = CommonMethods.hexToSignedInt(pitchStateStr)
+
+                    Log.d(TAG, "yawStateStr=${yawStateNum}")
+                    Log.d(TAG, "pitchStateStr=${pitchStateNum}")
+
+                    yawState = if(yawStateNum >= 9000) {
+                        1
+                    } else if(yawStateNum <= -9000) {
+                        2
+                    } else {
+                        0
+                    }
+
+                    pitchState = if(pitchStateNum >= 3000) {
+                        1
+                    } else if(pitchStateNum <= -9000) {
+                        2
+                    } else {
+                        0
                     }
                 }
             }
+            override fun onError(error: String) {
+                Log.e(TAG, error)
+            }
         }
-        // 定时器，100毫秒后开始执行，每1秒执行一次
-        timer.scheduleAtFixedRate(task, 100, 1000);
+
+        // 注册临时监听器并发送命令
+        service.setGlobalListener(listener)
     }
 }

@@ -124,7 +124,7 @@ class FloatingWindowManager(private val context: Context) {
             // 设置窗口参数 - 改为固定宽度填充屏幕
             val params = WindowManager.LayoutParams(
                 640, // 自适应宽度
-                if(isExchangePlayer) 360 else 512, // 高度自适应
+                if(isExchangePlayer) 360 else 480, // 高度自适应
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 } else {
