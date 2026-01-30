@@ -52,11 +52,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var isFirst = true
-    private var player1: RtspPlayer? = null
-    private var player2: RtspPlayer? = null
+    private var player: RtspPlayer? = null
     private lateinit var floatingManager: FloatingWindowManager
-    private lateinit var playerView1: SurfaceView    // 小窗口
-    private lateinit var playerView2: SurfaceView    // 全屏窗口
+    private lateinit var playerBox1: LinearLayout    // 小窗口
+    private lateinit var playerBox2: LinearLayout    // 全屏窗口
     private var isConnecting: Boolean = false
     private var isFirstConnect: Boolean = true
 
@@ -102,31 +101,8 @@ class MainActivity : AppCompatActivity() {
             WindowManager.LayoutParams.FLAG_FULLSCREEN
         )
         setContentView(R.layout.main)
-
-        // 按系统版本决定添加顺序
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Android 8.0+：后添加的覆盖先添加的
-            Log.d(TAG, "当前Android版本大于8.0")
-            playerView1 = findViewById(R.id.playerView1)
-            playerView2 = findViewById(R.id.playerView2)
-        } else {
-            Log.d(TAG, "当前Android版本小于8.0")
-            playerView1 = findViewById(R.id.playerView2)
-            playerView2 = findViewById(R.id.playerView1)
-        }
-        playerView1.translationZ = 10f
-        ViewCompat.setTranslationZ(playerView1, 10f) // 兼容旧版本
-        val params1 = playerView1.layoutParams as RelativeLayout.LayoutParams
-        params1.addRule(RelativeLayout.ALIGN_PARENT_LEFT)  // 左对齐
-        params1.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM) // 底对齐
-        playerView1.layoutParams = params1
-        playerView1.requestLayout()  // 触发重绘
-
-        val params2 = playerView2.layoutParams as ViewGroup.LayoutParams
-        params2.width = ViewGroup.LayoutParams.MATCH_PARENT
-        params2.height = ViewGroup.LayoutParams.MATCH_PARENT
-        playerView2.layoutParams = params2
-
+        playerBox1 = findViewById(R.id.playerBox1)
+        playerBox2 = findViewById(R.id.playerBox2)
 
         prefs = getSharedPreferences("camera_settings", MODE_PRIVATE)
 
@@ -231,37 +207,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        playerView1.setOnClickListener {
+        playerBox1.setOnClickListener {
             lifecycleScope.launch {
                 switchStreamsSafely()
             }
         }
-    }
-
-    /**
-     * 预加载另一个流
-     */
-    private fun preloadStream() {
-        if (isPreloading) return
-
-        thread {
-            isPreloading = true
-            val urlToPreload = if (isExchangePlayer) streamUrl1 else streamUrl2
-
-            // 模拟预加载：提前初始化解码器但不开始播放
-            Log.d(TAG, "预加载流: $urlToPreload")
-
-            // 这里可以提前探测流信息并缓存
-            preloadedUrl = urlToPreload
-            isPreloading = false
-        }
-    }
-
-    // 在适当的时机调用预加载，比如应用启动后或空闲时
-    private fun schedulePreload() {
-        Handler(Looper.getMainLooper()).postDelayed({
-            preloadStream()
-        }, 5000) // 5秒后开始预加载
     }
 
     // 设置伪彩默认选中项
@@ -319,22 +269,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        Log.d(TAG, "playerView1.holder.surface.isValid1=${playerView1.holder.surface.isValid}")
-        // 确保SurfaceView已准备好
-        if (playerView1.holder.surface.isValid && playerView2.holder.surface.isValid) {
-            if (player1 == null || player2 == null) {
-                releasePlayers()
-                initPlayer()
-            }
-        } else {
-            // 延迟初始化等待Surface准备好
-            Handler(Looper.getMainLooper()).postDelayed({
-                Log.d(TAG, "playerView1.holder.surface.isValid2=${playerView1.holder.surface.isValid}")
-                if (player1 == null || player2 == null) {
-                    releasePlayers()
-                    initPlayer()
-                }
-            }, 300)
+        if (player == null) {
+            releasePlayers()
+            initPlayer()
         }
     }
 
@@ -344,35 +281,39 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initPlayer() {
-
-        // 创建播放器2
-        player2 = RtspPlayer(streamUrl2, playerView2, object : RtspPlayer.RtspPlayerEventListener {
+        // 创建播放器
+        player = RtspPlayer(this, object : RtspPlayer.RtspPlayerEventListener {
             override fun onPlaying() {
-//                showToast("开始播放")
                 val handler = Handler(Looper.getMainLooper())
                 handler.post {
-                    val params = playerView1.layoutParams as ViewGroup.LayoutParams
+                    val params = playerBox1.layoutParams as ViewGroup.LayoutParams
 
-                    params.width = 384
+                    params.width = dpToPx(256f).toInt()
                     if (isExchangePlayer) {
-                        params.height = 308
+                        params.height = dpToPx(205f).toInt()
                     } else {
-                        params.height = 216
+                        params.height = dpToPx(144f).toInt()
                     }
-                    playerView1.layoutParams = params
+                    playerBox1.layoutParams = params
                 }
             }
 
             override fun onStopped() {
-//                showToast("播放停止")
+                showToast("播放停止")
             }
 
             override fun onError(errorMessage: String) {
 //                showToast("错误: $errorMessage")
+                player?.clearAllStreams()
+                Thread.sleep(200)
+                player?.addStream(streamUrl2, playerBox2)
+                player?.addStream(streamUrl1, playerBox1)
+                Thread.sleep(100)
+                player?.playAllStreams()
             }
 
             override fun onLogMessage(message: String) {
-//                Log.d("RtspPlayer", message)
+                Log.d("RtspPlayer", message)
             }
 
             override fun onVideoSizeChanged(width: Int, height: Int) {
@@ -384,33 +325,10 @@ class MainActivity : AppCompatActivity() {
             }
         })
         Thread.sleep(100)
-        // 创建播放器1
-        player1 = RtspPlayer(streamUrl1, playerView1, object : RtspPlayer.RtspPlayerEventListener {
-            override fun onPlaying() {
-//                showToast("开始播放")
-            }
-
-            override fun onStopped() {
-//                showToast("播放停止")
-            }
-
-            override fun onError(errorMessage: String) {
-//                showToast("错误: $errorMessage")
-            }
-
-            override fun onLogMessage(message: String) {
-//                Log.d("RtspPlayer", message)
-            }
-
-            override fun onVideoSizeChanged(width: Int, height: Int) {
-                // 可选的视频尺寸变化处理
-            }
-
-            override fun onFrameRendered(frameCount: Int) {
-                // 可选的帧渲染回调
-//                Log.d(TAG, "渲染")
-            }
-        })
+        player?.addStream(streamUrl1, playerBox1)
+        player?.addStream(streamUrl2, playerBox2)
+        Thread.sleep(100)
+        player?.playAllStreams()
     }
 
     /**
@@ -418,57 +336,30 @@ class MainActivity : AppCompatActivity() {
      */
     // 确保在协程作用域内调用
     private suspend fun switchStreamsSafely() {
-        Log.d(TAG, "开始并行切换视频流")
-
-        if (!playerView1.holder.surface.isValid || !playerView2.holder.surface.isValid) {
-            Log.e(TAG, "Surface无效，重新初始化播放器")
-            restartPlayers()
-            return
-        }
+        Log.d(TAG, "开始安全切换视频流")
 
         try {
-            // 使用 coroutineScope 创建协程作用域
             coroutineScope {
-                // 并行暂停两个播放器
-                val pauseTask1 = async { player1?.pausePlayback() }
-                val pauseTask2 = async { player2?.pausePlayback() }
-                pauseTask1.await()
-                pauseTask2.await()
+                // 1. 释放旧播放器资源
+                player?.clearAllStreams()
+                delay(200) // 关键：给SurfaceView一些时间完成生命周期回调
 
-                // 交换URL
+                // 3. 交换URL
                 val tempUrl = streamUrl1
                 streamUrl1 = streamUrl2
                 streamUrl2 = tempUrl
-
-                Log.d(TAG, "交换URL: $streamUrl1 <-> $streamUrl2")
-                val handler = Handler(Looper.getMainLooper())
-                handler.post {
-                    val params = playerView1.layoutParams as ViewGroup.LayoutParams
-
-                    params.width = 384
-                    if (isExchangePlayer) {
-                        params.height = 308
-                    } else {
-                        params.height = 216
-                    }
-                    playerView1.layoutParams = params
-                }
-
-                // 并行切换流
-                val switchTask1 = async {
-                    player1?.switchStreamOptimized(streamUrl1, false)
-                }
-                val switchTask2 = async {
-                    player2?.switchStreamOptimized(streamUrl2, false)
-                }
-                switchTask1.await()
-                switchTask2.await()
-
                 isExchangePlayer = !isExchangePlayer
 
+                // 4. 重新加载播放内容
+                player?.addStream(streamUrl2, playerBox2)
+                player?.addStream(streamUrl1, playerBox1)
+
+                // 5. 重新播放内容
+                Thread.sleep(100)
+                player?.playAllStreams()
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, "画面切换完成", Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, "视频流并行切换完成")
+                    Log.d(TAG, "视频流安全切换完成")
                 }
             }
         } catch (e: Exception) {
@@ -485,14 +376,17 @@ class MainActivity : AppCompatActivity() {
     private fun restartPlayers() {
         Log.d(TAG, "完全重启播放器")
 
-        // 释放旧播放器
-        player1?.release()
-        player2?.release()
-        player1 = null
-        player2 = null
+        // 确保在IO线程执行耗时操作
+        lifecycleScope.launch(Dispatchers.IO) {
+            player?.release()
+            // 给底层资源一些清理时间
+            delay(100)
 
-        // 重新创建播放器
-        initPlayer()
+            withContext(Dispatchers.Main) {
+                player = null
+                initPlayer()
+            }
+        }
     }
 
     private fun showToast(msg: String) {
@@ -529,10 +423,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun releasePlayers() {
-        player1?.release()
-        player1 = null
-        player2?.release()
-        player2 = null
+        player?.release()
+        player = null
         Log.i(TAG, "播放器释放完成")
     }
 
@@ -745,6 +637,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyFilterEffect(colorName: String) {
         service.setPseudoColor(colorName)
+    }
+
+    // dp转px工具方法
+    private fun dpToPx(dp: Float): Float {
+        return dp * resources.displayMetrics.density
     }
 
     // 定时器，判断连接状态

@@ -26,13 +26,19 @@
             android:background="#00000000"
             android:clipChildren="false">
 
-            <SurfaceView
-                android:id="@+id/floatingPlayer"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:scaleType="fitXY"
-                android:background="#00000000"
-                android:visibility="invisible"/>
+            <LinearLayout
+                android:id="@+id/floatingPlayerBox"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal">
+<!--                <SurfaceView-->
+<!--                    android:id="@+id/floatingPlayer"-->
+<!--                    android:layout_width="wrap_content"-->
+<!--                    android:layout_height="wrap_content"-->
+<!--                    android:scaleType="fitXY"-->
+<!--                    android:background="#00000000"-->
+<!--                    android:visibility="invisible"/>-->
+            </LinearLayout>
             <ImageButton
                 android:id="@+id/exitBtn"
                 android:layout_width="30dp"

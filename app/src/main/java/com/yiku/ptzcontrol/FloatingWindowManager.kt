@@ -29,7 +29,7 @@ class FloatingWindowManager(private val context: Context) {
 
     private val TAG = "FloatingWindowManager"
     private var floatingView: View? = null
-    private var playerView: SurfaceView? = null
+    private var playerBox: LinearLayout? = null
     private var rtspPlayer: RtspPlayer? = null
 
     // 新增视图引用
@@ -87,13 +87,13 @@ class FloatingWindowManager(private val context: Context) {
 
                 // 保存视图引用
                 playerContainer = findViewById(R.id.playerContainer)
-                playerView = findViewById(R.id.floatingPlayer)
+                playerBox = findViewById(R.id.floatingPlayerBox)
 
                 // 创建播放器（如果有流）
                 if (streamUrl != "") {
                     if(rtspPlayer == null) {
                         // 创建播放器1
-                        rtspPlayer = RtspPlayer(streamUrl, playerView!!, object : RtspPlayer.RtspPlayerEventListener {
+                        rtspPlayer = RtspPlayer(context, object : RtspPlayer.RtspPlayerEventListener {
                             override fun onPlaying() {
                             }
 
@@ -114,13 +114,11 @@ class FloatingWindowManager(private val context: Context) {
                                 // 可选的帧渲染回调
                             }
                         })
+                        rtspPlayer?.addStream(streamUrl, playerBox!!)
                     }
-                    else {
-                        rtspPlayer?.startPlayback(streamUrl)
-                    }
+                    rtspPlayer?.playAllStreams()
 
                     findViewById<ConstraintLayout>(R.id.rootLayout).visibility = View.VISIBLE
-                    playerView?.visibility = View.VISIBLE
                 }
 
                 // 回到APP
@@ -185,7 +183,6 @@ class FloatingWindowManager(private val context: Context) {
                 // 确保所有引用置空
                 playerContainer = null
                 videoContainer = null
-                playerView = null
                 floatingView = null
                 Log.d(TAG, "悬浮窗资源完全释放")
             }

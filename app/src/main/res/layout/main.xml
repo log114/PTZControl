@@ -8,19 +8,32 @@
     tools:context=".MainActivity">
 
     <!-- 全屏布局 -->
-    <SurfaceView
-        android:id="@+id/playerView2"
+    <LinearLayout
+        android:id="@+id/playerBox2"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        android:layout_height="match_parent"
+        android:orientation="horizontal">
+<!--        <SurfaceView-->
+<!--            android:id="@+id/playerView2"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="match_parent"/>-->
+    </LinearLayout>
 
-    <SurfaceView
-        android:id="@+id/playerView1"
-        android:layout_width="384dp"
-        android:layout_height="216dp"
+
+    <LinearLayout
+        android:id="@+id/playerBox1"
+        android:layout_width="256dp"
+        android:layout_height="144dp"
         android:layout_alignParentBottom="true"
         android:layout_alignParentStart="true"
         android:layout_margin="16dp"
-        android:translationZ="10dp"/>
+        android:orientation="horizontal"
+        android:translationZ="10dp">
+<!--        <SurfaceView-->
+<!--            android:id="@+id/playerView1"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="match_parent"/>-->
+    </LinearLayout>
 
     <!-- 透明覆盖层用于捕获拖拽事件 -->
     <View
