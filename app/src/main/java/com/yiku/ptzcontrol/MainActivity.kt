@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Color
-import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -28,14 +27,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.util.VLCVideoLayout
 import com.yiku.ptzcontrol.service.BaseService
-import com.yiku.ptzcontrol.service.BaseService.OnDataReceivedListener
 import com.yiku.ptzcontrol.service.ZT6Service
-import com.yiku.ptzcontrol.utils.CommonMethods
 import com.yiku.ptzcontrol.utils.MsgCallback
 import com.yiku.ptzcontrol.utils.RtspPlayer
 import java.util.Timer
@@ -89,6 +85,9 @@ class MainActivity : AppCompatActivity() {
     private var pitchState = 0 // 俯仰状态，0：未到限位，1：已达上限位，2：已达下限位
     private var yawState = 0  // 偏航状态，0：未到限位，1：已达左限位，2：已达右限位
     private var _context: Context = this
+    private lateinit var photographBtn: ImageButton
+    private lateinit var recordBtn: ImageButton
+    private var isRecording: Boolean = false
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -149,6 +148,55 @@ class MainActivity : AppCompatActivity() {
                 if (msg[7] == 0x1A.toByte()) {
                     onColorDataReceived(msg)
                 }
+                // 回传功能反馈消息
+                if(msg[7] == 0x0B.toByte()) {
+                    runOnUiThread {
+                        when (msg[8].toInt()) {
+                            0 -> {
+                                Toast.makeText(_context, "拍照成功", Toast.LENGTH_SHORT).show()
+                                photographBtn.isEnabled = true
+                            }
+                            1 -> {
+                                Toast.makeText(_context, "拍照失败，请检查是否插入 TF 卡", Toast.LENGTH_SHORT).show()
+                                photographBtn.isEnabled = true
+                            }
+                            2 -> {
+                                Toast.makeText(_context, "HDR 模式开启", Toast.LENGTH_SHORT).show()
+                            }
+                            3 -> {
+                                Toast.makeText(_context, "HDR 模式关闭", Toast.LENGTH_SHORT).show()
+                            }
+                            4 -> {
+                                Toast.makeText(_context, "录像失败，请检查是否插入 TF 卡", Toast.LENGTH_SHORT).show()
+                                isRecording = false
+                                recordBtn.isSelected = false
+                            }
+                        }
+                    }
+                }
+                // 云台配置信息
+                if(msg[7] == 0x0A.toByte()) {
+                    runOnUiThread {
+                        when(msg[11].toInt()) {
+                            0 -> { // 未开启录像
+                                isRecording = false
+                                recordBtn.isSelected = false
+                            }
+                            1 -> { // 已开启录像
+                                isRecording = true
+                                recordBtn.isSelected = true
+                            }
+                            2 -> {
+                                Toast.makeText(_context, "未插入 TF 卡", Toast.LENGTH_SHORT).show()
+                            }
+                            3 -> {
+                                isRecording = true
+                                recordBtn.isSelected = true
+                                Toast.makeText(_context, "TF 卡录制视频数据有丢失，请检查 TF 卡", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
             }
 
         })
@@ -202,6 +250,27 @@ class MainActivity : AppCompatActivity() {
                 releasePlayers()
             } else {
                 Log.d(TAG, "Floating window permission not granted")
+            }
+        }
+
+        photographBtn = findViewById(R.id.photographButton)
+        // 拍照
+        photographBtn.setOnClickListener {
+            photographBtn.isEnabled = false
+            service.photograph()
+        }
+
+        recordBtn = findViewById(R.id.videoButton)
+        // 录像
+        recordBtn.setOnClickListener {
+            service.video()
+            isRecording = !isRecording
+            recordBtn.isSelected = isRecording
+            if(isRecording) {
+                Toast.makeText(_context, "开始录像", Toast.LENGTH_SHORT).show()
+            }
+            else {
+                Toast.makeText(_context, "停止录像", Toast.LENGTH_SHORT).show()
             }
         }
 

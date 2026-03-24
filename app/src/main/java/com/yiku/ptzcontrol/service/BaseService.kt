@@ -32,5 +32,8 @@ open class BaseService {
     open fun convertPseudoColorInt2Str(colorCode: Int): String { return "" } // 相机伪彩数字转为文字
     open fun enlarge() {} // 相机变焦——放大
     open fun reduce() {} // 相机变焦——缩小
-    open fun zoom(type: String) {}// 缩放：enlarge：放大，reduce：缩小，stop：停止缩放
+    open fun zoom(type: String) {} // 缩放：enlarge：放大，reduce：缩小，stop：停止缩放
+    open fun photograph() {} // 拍照
+    open fun video() {} // 录像
+    open fun getConfig() {} // 获取云台配置信息
 }

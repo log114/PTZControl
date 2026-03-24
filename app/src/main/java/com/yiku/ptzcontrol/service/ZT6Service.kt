@@ -35,6 +35,8 @@ class ZT6Service: BaseService() {
             setVideoStreamMode(3)
             Thread.sleep(100)
             getPseudoColor() // 获取当前伪彩设置
+            Thread.sleep(100)
+            getConfig() // 获取云台配置信息
             inputStream = client.getInputStream()
             thread {
                 Log.i(TAG, "recv start...")
@@ -257,6 +259,32 @@ class ZT6Service: BaseService() {
             "stop" -> 0.toByte()
             else -> 0.toByte()
         }
+        send(msg.getMsg())
+    }
+
+    // 拍照
+    override fun photograph() {
+        val msg = ZT6Msg()
+        msg.CMD_ID = 0x0C
+        msg.DATA = ByteArray(1)
+        msg.DATA[0] = 0
+        send(msg.getMsg())
+    }
+
+    // 录像
+    override fun video() {
+        val msg = ZT6Msg()
+        msg.CMD_ID = 0x0C
+        msg.DATA = ByteArray(1)
+        msg.DATA[0] = 2
+        send(msg.getMsg())
+    }
+
+    // 获取云台配置信息
+    override fun getConfig() {
+        val msg = ZT6Msg()
+        msg.CMD_ID = 0x0A
+        msg.DATA = ByteArray(0)
         send(msg.getMsg())
     }
 }
