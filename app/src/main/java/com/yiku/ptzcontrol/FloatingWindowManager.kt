@@ -91,6 +91,7 @@ class FloatingWindowManager(private val context: Context) {
 
                 // 创建播放器（如果有流）
                 if (streamUrl != "") {
+                    Log.d(TAG, "播放视频流: $streamUrl")
                     if(rtspPlayer == null) {
                         // 创建播放器1
                         rtspPlayer = RtspPlayer(context, object : RtspPlayer.RtspPlayerEventListener {
@@ -101,6 +102,12 @@ class FloatingWindowManager(private val context: Context) {
                             }
 
                             override fun onError(errorMessage: String) {
+                                Log.e(TAG, errorMessage)
+                                rtspPlayer?.clearAllStreams()
+                                Thread.sleep(200)
+                                rtspPlayer?.addStream(streamUrl, playerBox!!)
+                                Thread.sleep(100)
+                                rtspPlayer?.playAllStreams()
                             }
 
                             override fun onLogMessage(message: String) {
@@ -114,7 +121,9 @@ class FloatingWindowManager(private val context: Context) {
                                 // 可选的帧渲染回调
                             }
                         })
+                        Thread.sleep(100)
                         rtspPlayer?.addStream(streamUrl, playerBox!!)
+                        Thread.sleep(100)
                     }
                     rtspPlayer?.playAllStreams()
 

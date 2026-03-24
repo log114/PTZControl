@@ -83,10 +83,6 @@ class MainActivity : AppCompatActivity() {
     private var yawState = 0  // 偏航状态，0：未到限位，1：已达左限位，2：已达右限位
     private var _context: Context = this
 
-    // 添加预加载状态变量
-    private var isPreloading = false
-    private var preloadedUrl: String? = null
-
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var isExchangePlayer = false
@@ -169,6 +165,9 @@ class MainActivity : AppCompatActivity() {
         // 悬浮窗显示
         findViewById<ImageButton>(R.id.openFloatingWindowButton).setOnClickListener {
             this.moveTaskToBack(true)
+            // 释放掉播放器资源
+            player?.release()
+            player = null
             // 尝试显示悬浮窗
             if (floatingManager.checkOverlayPermission()) {
                 floatingManager.showFloatingWindow(streamUrl2, isExchangePlayer)
@@ -284,6 +283,7 @@ class MainActivity : AppCompatActivity() {
         // 创建播放器
         player = RtspPlayer(this, object : RtspPlayer.RtspPlayerEventListener {
             override fun onPlaying() {
+                Log.d(TAG, "onPlaying")
                 val handler = Handler(Looper.getMainLooper())
                 handler.post {
                     val params = playerBox1.layoutParams as ViewGroup.LayoutParams
@@ -306,8 +306,8 @@ class MainActivity : AppCompatActivity() {
 //                showToast("错误: $errorMessage")
                 player?.clearAllStreams()
                 Thread.sleep(200)
-                player?.addStream(streamUrl2, playerBox2)
                 player?.addStream(streamUrl1, playerBox1)
+                player?.addStream(streamUrl2, playerBox2)
                 Thread.sleep(100)
                 player?.playAllStreams()
             }
@@ -325,8 +325,8 @@ class MainActivity : AppCompatActivity() {
             }
         })
         Thread.sleep(100)
-        player?.addStream(streamUrl1, playerBox1)
         player?.addStream(streamUrl2, playerBox2)
+        player?.addStream(streamUrl1, playerBox1)
         Thread.sleep(100)
         player?.playAllStreams()
     }

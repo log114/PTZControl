@@ -133,7 +133,6 @@ class RtspPlayer(
                 playStream(streamItem)
             }
         }
-        Log.d(TAG, "播放成功")
         thread {
             var waitCount = 0
             while (true) {
@@ -147,6 +146,7 @@ class RtspPlayer(
                 }
                 if(result) {
                     eventListener?.onPlaying()
+                    Log.d(TAG, "播放成功")
                     break
                 }
                 else if(waitCount >= 5) {
