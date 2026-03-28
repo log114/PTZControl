@@ -95,6 +95,7 @@ class MainActivity : AppCompatActivity() {
 
     private var isExchangePlayer = false
     private var isZooming = false
+    private var isRecording = false // 是否正在录像
 
     @SuppressLint("ClickableViewAccessibility")
     @RequiresApi(Build.VERSION_CODES.O)
@@ -148,6 +149,20 @@ class MainActivity : AppCompatActivity() {
         // 启动时检查悬浮窗权限
         checkOverlayPermission()
 
+        // 拍照
+        photographBtn = findViewById(R.id.photographButton)
+        photographBtn.setOnClickListener {
+            photographBtn.isEnabled = false
+            service.photograph()
+        }
+
+        // 录像
+        videoBtn = findViewById(R.id.videoButton)
+        videoBtn.setOnClickListener {
+            videoBtn.isEnabled = false
+            service.video(!isRecording)
+        }
+
         // 设置按钮点击事件
         findViewById<ImageButton>(R.id.settingsButton).setOnClickListener {
             isSetting = true
@@ -189,6 +204,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 // 收到伪彩信息后，才发送请求，请求推送云台角度数据
                 service.ptzAnglePush(true)
+                Thread.sleep(100)
+                service.getVideoState() // 读取录像状态
                 setDataReceivedListener()
             }
 
@@ -684,6 +701,50 @@ class MainActivity : AppCompatActivity() {
                         2
                     } else {
                         0
+                    }
+                }
+                // 拍照
+                if(data == "#TPDU2wCAP013E") {
+                    runOnUiThread {
+                        Toast.makeText(_context, "拍照成功", Toast.LENGTH_SHORT).show()
+                        photographBtn.isEnabled = true
+                    }
+                }
+                // 录像
+                if(data.contains("#TPDU2wREC")) {
+                    val videoState = data.substring(10, 12)
+                    runOnUiThread {
+                        when(videoState) {
+                            "00" -> {
+                                Toast.makeText(_context, "停止录像", Toast.LENGTH_SHORT).show()
+                                isRecording = false
+                                videoBtn.isSelected = false
+                            }
+                            "01" -> {
+                                Toast.makeText(_context, "开始录像", Toast.LENGTH_SHORT).show()
+                                isRecording = true
+                                videoBtn.isSelected = true
+                            }
+                        }
+                        videoBtn.isEnabled = true
+                    }
+                }
+                // 录像状态读取
+                if(data.contains("#TPDU2rREC")) {
+                    val videoState = data.substring(10, 12)
+                    runOnUiThread {
+                        when(videoState) {
+                            "00" -> {
+                                isRecording = false
+                                videoBtn.isSelected = false
+                            }
+                            "01" -> {
+                                Toast.makeText(_context, "正在录像", Toast.LENGTH_SHORT).show()
+                                isRecording = true
+                                videoBtn.isSelected = true
+                            }
+                        }
+                        videoBtn.isEnabled = true
                     }
                 }
             }

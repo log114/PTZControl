@@ -281,4 +281,8 @@ class C12Service: BaseService() {
             send("#TPUD2wREC00")
         }
     }
+
+    override fun getVideoState() {
+        send("#TPUD2rREC00")
+    }
 }

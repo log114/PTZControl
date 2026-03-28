@@ -1,14 +1,41 @@
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-<item android:state_pressed="true">
-    <shape android:shape="oval">
-        <solid android:color="#6D4C41"/> <!-- 按下时深一点的棕色 -->
-        <size android:width="56dp" android:height="56dp"/>
-    </shape>
-</item>
-<item>
-    <shape android:shape="oval">
-        <solid android:color="#8D6E63"/> <!-- 正常状态浅棕色 -->
-        <size android:width="56dp" android:height="56dp"/>
-    </shape>
-</item>
+    <!-- 状态1: 正在录像（被选中/checked）时的按下状态 -->
+    <item android:state_selected="true" android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#D32F2F" /> <!-- 录像中+按下：深红色 -->
+            <size android:width="56dp" android:height="56dp" />
+        </shape>
+    </item>
+
+    <!-- 状态2: 正在录像（被选中/checked）时的常态 -->
+    <item android:state_selected="true">
+        <shape android:shape="oval">
+            <solid android:color="#F44336" /> <!-- 录像中：红色 -->
+            <size android:width="56dp" android:height="56dp" />
+        </shape>
+    </item>
+
+    <!-- 状态3: 不可用状态 (isEnabled=false) -->
+    <item android:state_enabled="false">
+        <shape android:shape="oval">
+            <solid android:color="#E0BFBF" /> <!-- 不可用：灰色 -->
+            <size android:width="56dp" android:height="56dp" />
+        </shape>
+    </item>
+
+    <!-- 状态4: 常态下的按下状态 -->
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#6D4C41" /> <!-- 常态的按下色 -->
+            <size android:width="56dp" android:height="56dp" />
+        </shape>
+    </item>
+
+    <!-- 状态5: 默认状态 -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#8D6E63" /> <!-- 常态色 -->
+            <size android:width="56dp" android:height="56dp" />
+        </shape>
+    </item>
 </selector>
