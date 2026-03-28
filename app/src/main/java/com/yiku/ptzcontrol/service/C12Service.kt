@@ -270,4 +270,15 @@ class C12Service: BaseService() {
     override fun reduce() {
         send("#TPUD2wDZM0B")
     }
+    override fun photograph() {
+        send("#TPUD2wCAP01")
+    }
+    override fun video(switch: Boolean) {
+        if(switch) {
+            send("#TPUD2wREC01")
+        }
+        else {
+            send("#TPUD2wREC00")
+        }
+    }
 }

@@ -49,6 +49,30 @@
             android:padding="6dp"
             android:background="@drawable/round_button_pressed"
             android:contentDescription="悬浮窗显示"/>
+        <!-- 拍照 -->
+        <ImageButton
+            android:id="@+id/photographButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/photograph"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="6dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="拍照"/>
+        <!-- 录像 -->
+        <ImageButton
+            android:id="@+id/videoButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/video"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="true"
+            android:padding="6dp"
+            android:background="@drawable/round_button_pressed"
+            android:contentDescription="录像"/>
         <!-- 放大 -->
         <ImageButton
             android:id="@+id/enlargeButton"

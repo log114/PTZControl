@@ -20,6 +20,7 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.ArrayAdapter
 import android.widget.BaseAdapter
+import android.widget.Button
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ListView
@@ -61,6 +62,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var floatingManager: FloatingWindowManager
     private lateinit var playerView1: VLCVideoLayout    // 小窗口
     private lateinit var playerView2: VLCVideoLayout    // 全屏窗口
+    private lateinit var photographBtn: ImageButton
+    private lateinit var videoBtn: ImageButton
 
     private var rtspPlayer: RtspPlayer? = null
 

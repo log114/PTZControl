@@ -33,4 +33,6 @@ open class BaseService {
     open fun enlarge() {} // 相机变焦——放大
     open fun reduce() {} // 相机变焦——缩小
     open fun zoom(type: String) {}// 缩放：enlarge：放大，reduce：缩小，stop：停止缩放
+    open fun photograph() {} // 拍照
+    open fun video(switch: Boolean) {} // 录像: false.停止，true.开始
 }
